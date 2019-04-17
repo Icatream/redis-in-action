@@ -4,7 +4,6 @@ import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
-import lettuce.chapter.Chapter04;
 
 /**
  * @author YaoXunYu
@@ -16,11 +15,6 @@ public class Main {
         RedisClient client = RedisClient.create(RedisURI.create("localhost", 6379));
         StatefulRedisConnection<String, String> conn = client.connect();
         RedisReactiveCommands<String, String> commands = conn.reactive();
-        /*StepVerifier.create(commands.set("hello", "world"))
-            .expectNext("OK")
-            .verifyComplete();*/
-        Chapter04 c = new Chapter04(commands);
-        c.purchaseItem(10, 2, 3, 12);
-        c.scriptFlush();
+
     }
 }

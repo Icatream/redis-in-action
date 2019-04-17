@@ -464,6 +464,12 @@ public class Chapter03 extends BaseChapter {
         conn.close();
     }
 
+    /**
+     * copy from <a>https://github.com/lettuce-io/lettuce-core/wiki/Transactions</a>
+     * not thread safe, anyway
+     *
+     * @see Chapter03 test
+     */
     public void transactionWithReactive(RedisClient client) {
         String k = "key";
         StatefulRedisConnection<String, String> conn = client.connect();
@@ -481,6 +487,52 @@ public class Chapter03 extends BaseChapter {
 
         comm.get(k)
             .block();
+    }
+
+    /**
+     * throw exceptions in sub-thread
+     */
+    public void test() {
+        new Thread(() -> {
+            System.out.println("thread1");
+            try {
+                System.out.println("t1 multi start");
+                comm.multi()
+                    .doOnNext(ok -> comm.lpush("k", "v1").subscribe())
+                    .block();
+                System.out.println("ti multi end");
+                Thread.sleep(10000);
+                System.out.println("t1 after sleep");
+                comm.exec()
+                    .doOnNext(res -> {
+                        System.out.println("t1-exec");
+                        System.out.println(res.wasDiscarded());
+                    })
+                    .block();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start();
+        new Thread(() -> {
+            try {
+                Thread.sleep(1000);
+                System.out.println("thread2");
+                comm.multi()
+                    .doOnNext(ok -> comm.lpush("k", "v2").subscribe())
+                    .block();
+                comm.exec()
+                    .doOnNext(res -> {
+                        System.out.println("thread2-exec");
+                        for (int i = 0; i < res.size(); i++) {
+                            System.out.println("i: " + i + " , res: " + res.get(i));
+                        }
+                    })
+                    .block();
+            } catch (Exception e) {
+                System.out.println("t2-multi-err");
+                e.printStackTrace();
+            }
+        }).start();
     }
 
     public void expire() {
