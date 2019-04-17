@@ -1,10 +1,10 @@
 package lettuce;
 
-import lettuce.chapter.Chapter04;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
+import lettuce.chapter.Chapter04;
 
 /**
  * @author YaoXunYu

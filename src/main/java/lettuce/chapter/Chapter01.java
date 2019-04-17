@@ -1,12 +1,11 @@
 package lettuce.chapter;
 
-import lettuce.pojo.Article;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Suppliers;
-import lettuce.key.ArticleKey;
 import io.lettuce.core.ZStoreArgs;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
+import lettuce.pojo.Article;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -22,6 +21,8 @@ import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
+
+import static lettuce.key.ArticleKey.*;
 
 /**
  * @author YaoXunYu
@@ -43,13 +44,13 @@ public class Chapter01 extends BaseChapter {
     public Mono<Long> articleVote(long articleId, long userId) {
         long cutOff = LocalDateTime.now()
             .minusWeeks(1).atZone(ZoneOffset.systemDefault()).toEpochSecond();
-        String a = ArticleKey.ARTICLE_PREFIX + articleId;
-        return comm.zscore(ArticleKey.TIME_Z_SET, a)
+        String a = ARTICLE_PREFIX + articleId;
+        return comm.zscore(TIME_Z_SET, a)
             .filter(d -> d >= cutOff)
-            .then(comm.sadd(ArticleKey.VOTED_PREFIX + articleId, ArticleKey.USER_PREFIX + userId)
+            .then(comm.sadd(VOTED_PREFIX + articleId, USER_PREFIX + userId)
                 .filter(i -> i == 1)
-                .then(comm.zincrby(ArticleKey.SCORE_Z_SET, VOTE_SCORE, a)
-                    .then(comm.hincrby(a, ArticleKey.PROP_VOTES, 1))));
+                .then(comm.zincrby(SCORE_Z_SET, VOTE_SCORE, a)
+                    .then(comm.hincrby(a, PROP_VOTES, 1))));
     }
 
     /**
@@ -60,24 +61,24 @@ public class Chapter01 extends BaseChapter {
      * 添加时间
      */
     public Mono<Long> postArticle(Article article) {
-        return comm.incr(ArticleKey.ARTICLE_PREFIX)
+        return comm.incr(ARTICLE_PREFIX)
             .flatMap(id -> {
                 article.setId(id);
                 long now = LocalDateTime.now().atZone(ZoneOffset.systemDefault()).toEpochSecond();
                 article.setTime(now);
-                String voted = ArticleKey.VOTED_PREFIX + id;
-                String a = ArticleKey.ARTICLE_PREFIX + id;
-                return comm.sadd(voted, ArticleKey.USER_PREFIX + article.getPosterId())
+                String voted = VOTED_PREFIX + id;
+                String a = ARTICLE_PREFIX + id;
+                return comm.sadd(voted, USER_PREFIX + article.getPosterId())
                     .then(comm.expire(voted, Duration.ofDays(7).getSeconds()))
                     .then(putArticle(article))
-                    .then(comm.zadd(ArticleKey.SCORE_Z_SET, now + VOTE_SCORE, a))
-                    .then(comm.zadd(ArticleKey.TIME_Z_SET, now, a))
+                    .then(comm.zadd(SCORE_Z_SET, now + VOTE_SCORE, a))
+                    .then(comm.zadd(TIME_Z_SET, now, a))
                     .thenReturn(id);
             });
     }
 
     public Flux<Article> getArticles(int page) {
-        return getArticles(page, ArticleKey.SCORE_Z_SET);
+        return getArticles(page, SCORE_Z_SET);
     }
 
     public Flux<Article> getArticles(int page, String order) {
@@ -89,19 +90,19 @@ public class Chapter01 extends BaseChapter {
     }
 
     public Flux<Long> changeGroup(long articleId, List<Long> addGroupIds, List<Long> removeGroupIds) {
-        String a = ArticleKey.ARTICLE_PREFIX + articleId;
+        String a = ARTICLE_PREFIX + articleId;
         return Flux.fromIterable(addGroupIds)
-            .flatMap(groupId -> comm.sadd(ArticleKey.GROUP_PREFIX + groupId, a))
+            .flatMap(groupId -> comm.sadd(GROUP_PREFIX + groupId, a))
             .concatWith(Flux.fromIterable(removeGroupIds)
-                .flatMap(groupId -> comm.srem(ArticleKey.GROUP_PREFIX + groupId, a)));
+                .flatMap(groupId -> comm.srem(GROUP_PREFIX + groupId, a)));
     }
 
     public Flux<Article> getGroupArticles(long groupId, int page) {
-        return getGroupArticles(groupId, page, ArticleKey.SCORE_Z_SET);
+        return getGroupArticles(groupId, page, SCORE_Z_SET);
     }
 
     public Flux<Article> getGroupArticles(long groupId, int page, String order) {
-        String group = ArticleKey.GROUP_PREFIX + groupId;
+        String group = GROUP_PREFIX + groupId;
         String key = order + group;
         return comm.exists(key)
             .filter(i -> i == 1)
@@ -112,7 +113,7 @@ public class Chapter01 extends BaseChapter {
     private Mono<String> putArticle(Article article) {
         Map<String, String> map = mapper.convertValue(article, new TypeReference<Map<String, String>>() {
         });
-        return comm.hmset(ArticleKey.ARTICLE_PREFIX + article.getId(), map);
+        return comm.hmset(ARTICLE_PREFIX + article.getId(), map);
     }
 
     private static class EntryToArticle implements Collector<Map.Entry<String, String>, Article, Article> {

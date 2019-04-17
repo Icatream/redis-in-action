@@ -1,7 +1,5 @@
 package lettuce.chapter;
 
-import lettuce.key.ArticleKey;
-import lettuce.key.C04Key;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
 import reactor.core.publisher.Flux;
@@ -18,6 +16,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+
+import static lettuce.key.ArticleKey.USER_PREFIX;
+import static lettuce.key.C04Key.*;
 
 /**
  * @author YaoXunYu
@@ -45,8 +46,8 @@ public class Chapter04 extends BaseChapter {
 
     //Warning: No error handler
     public Mono<Void> processLog(Path outerPath, Function<String, Mono<Void>> lineAnalyze) {
-        return comm.get(C04Key.CURRENT_FILE)
-            .zipWith(comm.get(C04Key.OFFSET)
+        return comm.get(CURRENT_FILE)
+            .zipWith(comm.get(OFFSET)
                 .map(Integer::valueOf))
             .flatMap(tuple -> {
                 String currentFile = tuple.getT1();
@@ -91,14 +92,14 @@ public class Chapter04 extends BaseChapter {
 
     private Mono<String> updateProgress(Path file, int offset) {
         Map<String, String> map = new HashMap<>();
-        map.put(C04Key.CURRENT_FILE, file.getFileName().toString());
-        map.put(C04Key.OFFSET, String.valueOf(offset));
+        map.put(CURRENT_FILE, file.getFileName().toString());
+        map.put(OFFSET, String.valueOf(offset));
         return comm.mset(map);
     }
 
     public void listItem(long itemId, long sellerId, long price) {
         String itemIdStr = String.valueOf(itemId);
-        String inventory = C04Key.INVENTORY + sellerId;
+        String inventory = INVENTORY + sellerId;
 
         StepVerifier.create(comm.sadd(inventory, itemIdStr))
             .expectNext(1L)
@@ -108,7 +109,7 @@ public class Chapter04 extends BaseChapter {
         //long end = LocalDateTime.now().plusSeconds(5).atZone(ZoneOffset.systemDefault()).toEpochSecond();
         listItemSHA1.flatMap(sha -> comm.evalsha(sha,
             ScriptOutputType.BOOLEAN,
-            new String[]{inventory, C04Key.MARKET, item},
+            new String[]{inventory, MARKET, item},
             itemIdStr, String.valueOf(price))
             .single())
             .doOnNext(r -> {
@@ -121,11 +122,11 @@ public class Chapter04 extends BaseChapter {
             .expectNext(false)
             .verifyComplete();
 
-        StepVerifier.create(comm.zrange(C04Key.MARKET, 0, -1))
+        StepVerifier.create(comm.zrange(MARKET, 0, -1))
             .expectNext(item)
             .verifyComplete();
 
-        del(C04Key.MARKET);
+        del(MARKET);
     }
 
     public void purchaseItem(long itemId, long sellerId, long buyerId, long lPrice) {
@@ -135,23 +136,23 @@ public class Chapter04 extends BaseChapter {
             throw new IllegalArgumentException();
         }
 
-        String seller = ArticleKey.USER_PREFIX + sellerId;
-        String buyer = ArticleKey.USER_PREFIX + buyerId;
-        String bInventory = C04Key.INVENTORY + buyerId;
+        String seller = USER_PREFIX + sellerId;
+        String buyer = USER_PREFIX + buyerId;
+        String bInventory = INVENTORY + buyerId;
         String item = itemId + "." + sellerId;
 
-        StepVerifier.create(comm.zadd(C04Key.MARKET, lPrice, item))
+        StepVerifier.create(comm.zadd(MARKET, lPrice, item))
             .expectNext(1L)
             .verifyComplete();
 
         //设置buyer拥有的金额
-        StepVerifier.create(comm.hset(buyer, C04Key.FUNDS, String.valueOf(fundsOfBuyer)))
+        StepVerifier.create(comm.hset(buyer, FUNDS, String.valueOf(fundsOfBuyer)))
             .expectNext(true)
             .verifyComplete();
 
         StepVerifier.create(purchaseItemSHA1.flatMap(sha -> comm.evalsha(sha,
             ScriptOutputType.BOOLEAN,
-            new String[]{C04Key.MARKET, buyer, seller, bInventory, C04Key.FUNDS},
+            new String[]{MARKET, buyer, seller, bInventory, FUNDS},
             item,
             String.valueOf(lPrice),
             String.valueOf(itemId))
@@ -162,10 +163,10 @@ public class Chapter04 extends BaseChapter {
             })
             .verifyComplete();
 
-        StepVerifier.create(comm.zrange(C04Key.MARKET, 0, -1))
+        StepVerifier.create(comm.zrange(MARKET, 0, -1))
             .verifyComplete();
 
-        StepVerifier.create(comm.hget(buyer, C04Key.FUNDS))
+        StepVerifier.create(comm.hget(buyer, FUNDS))
             .expectNext(String.valueOf(fundsOfBuyer - lPrice))
             .verifyComplete();
 
@@ -173,7 +174,7 @@ public class Chapter04 extends BaseChapter {
             .expectNext(String.valueOf(itemId))
             .verifyComplete();
 
-        StepVerifier.create(comm.del(buyer, ArticleKey.USER_PREFIX + sellerId, bInventory))
+        StepVerifier.create(comm.del(buyer, USER_PREFIX + sellerId, bInventory))
             .expectNext(3L)
             .verifyComplete();
     }
