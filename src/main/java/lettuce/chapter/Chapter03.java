@@ -466,7 +466,7 @@ public class Chapter03 extends BaseChapter {
 
     /**
      * copy from <a>https://github.com/lettuce-io/lettuce-core/wiki/Transactions</a>
-     * not thread safe, anyway
+     * not thread safe, if you are using single connection
      *
      * @see Chapter03 test
      */

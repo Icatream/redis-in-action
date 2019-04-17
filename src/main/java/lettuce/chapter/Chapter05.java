@@ -18,6 +18,7 @@ public class Chapter05 extends BaseChapter {
         super(comm);
     }
 
+    //instead of using pipeline in lettuce, using lua script
     public Mono<String> logRecent(String name, Severity severity, String message) {
         String destination = RECENT + SEPARATOR + name + SEPARATOR + severity.value;
         String msg = LocalDateTime.now() + " " + message;
