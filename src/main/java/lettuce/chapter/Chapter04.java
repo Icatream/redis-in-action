@@ -31,13 +31,13 @@ public class Chapter04 extends BaseChapter {
     public Chapter04(RedisReactiveCommands<String, String> comm) {
         super(comm);
         try {
-            URL listItemLua = ClassLoader.getSystemResource("lua/ListItem.lua");
-            String listItemScript = new String(Files.readAllBytes(Paths.get(listItemLua.toURI())));
-            listItemSHA1 = comm.scriptLoad(listItemScript)
+            URL listItem = ClassLoader.getSystemResource("lua/ListItem.lua");
+            String listItemLua = new String(Files.readAllBytes(Paths.get(listItem.toURI())));
+            listItemSHA1 = comm.scriptLoad(listItemLua)
                 .cache();
-            URL purchaseItemLua = ClassLoader.getSystemResource("lua/PurchaseItem.lua");
-            String purchaseItemScript = new String(Files.readAllBytes(Paths.get(purchaseItemLua.toURI())));
-            purchaseItemSHA1 = comm.scriptLoad(purchaseItemScript)
+            URL purchaseItem = ClassLoader.getSystemResource("lua/PurchaseItem.lua");
+            String purchaseItemLua = new String(Files.readAllBytes(Paths.get(purchaseItem.toURI())));
+            purchaseItemSHA1 = comm.scriptLoad(purchaseItemLua)
                 .cache();
         } catch (IOException | URISyntaxException e) {
             throw new RuntimeException(e);
