@@ -14,7 +14,6 @@ if exist ~= nil then
         redis.call('rename', lDes, lDes .. ':last')
         redis.call('rename', sKey, lDes .. ':plast')
         redis.call('set', sKey, startHour)
-    else return false
     end
 else
     redis.call('set', sKey, startHour)
