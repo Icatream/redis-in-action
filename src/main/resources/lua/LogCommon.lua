@@ -6,18 +6,18 @@
 -- To change this template use File | Settings | File Templates.
 --
 local lDes = KEYS[1]
-local startTime = tonumber(ARGV[1])
+local startHour = tonumber(ARGV[1])
 local sKey = lDes .. ':start'
 local exist = tonumber(redis.call('get', sKey))
 if exist ~= nil then
-    if exist < startTime then
+    if exist < startHour then
         redis.call('rename', lDes, lDes .. ':last')
         redis.call('rename', sKey, lDes .. ':plast')
-        redis.call('set', sKey, startTime)
+        redis.call('set', sKey, startHour)
     else return false
     end
 else
-    redis.call('set', sKey, startTime)
+    redis.call('set', sKey, startHour)
 end
 local msg = ARGV[2]
 redis.call('zincrby', lDes, 1, msg)

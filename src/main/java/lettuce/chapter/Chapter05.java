@@ -49,11 +49,13 @@ public class Chapter05 extends BaseChapter {
     public Mono<Boolean> logCommon(String name, String message, Severity severity, long timeout) {
         String lDes = COMMON + name + SEPARATOR + severity.value;
         String mDes = RECENT + name + SEPARATOR + severity.value;
-        long now = LocalDateTime.now().atZone(ZoneOffset.systemDefault()).toEpochSecond();
+        long hour = LocalDateTime.now()
+            .withNano(0).withSecond(0).withMinute(0)
+            .atZone(ZoneOffset.systemDefault()).toEpochSecond();
         return logCommonSHA1.flatMap(sha -> comm.evalsha(sha,
             ScriptOutputType.BOOLEAN,
             new String[]{lDes, mDes},
-            String.valueOf(now),
+            String.valueOf(hour),
             message)
             .single()
             .map(b -> (Boolean) b));
