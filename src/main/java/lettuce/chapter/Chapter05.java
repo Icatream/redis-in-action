@@ -31,6 +31,7 @@ public class Chapter05 extends BaseChapter {
     private final Mono<String> logCommonSHA1;
     private final Mono<String> timeSpecificCounterSHA1;
     private final Mono<String> cleanCounterSHA1;
+    private final Mono<String> updateStatsSHA1;
 
     public Chapter05(RedisReactiveCommands<String, String> comm) {
         super(comm);
@@ -46,6 +47,10 @@ public class Chapter05 extends BaseChapter {
             URL cleanCounter = ClassLoader.getSystemResource("lua/CleanCounter.lua");
             String cleanCounterLua = new String(Files.readAllBytes(Paths.get(cleanCounter.toURI())));
             cleanCounterSHA1 = comm.scriptLoad(cleanCounterLua)
+                .cache();
+            URL updateStats = ClassLoader.getSystemResource("lua/UpdateStats.lua");
+            String updateStatsLua = new String(Files.readAllBytes(Paths.get(updateStats.toURI())));
+            updateStatsSHA1 = comm.scriptLoad(updateStatsLua)
                 .cache();
         } catch (IOException | URISyntaxException e) {
             throw new RuntimeException(e);
@@ -110,4 +115,17 @@ public class Chapter05 extends BaseChapter {
             .delayElements(Duration.ofSeconds(60));
     }
 
+    public Mono<Boolean> updateStats(String context, String type, int value) {
+        String des = STATS + context + SEPARATOR + type;
+        long hour = LocalDateTime.now()
+            .withNano(0).withSecond(0).withMinute(0)
+            .atZone(ZoneOffset.systemDefault()).toEpochSecond();
+        return updateStatsSHA1.flatMap(sha -> comm.evalsha(sha,
+            ScriptOutputType.BOOLEAN,
+            new String[]{des},
+            String.valueOf(hour),
+            String.valueOf(value))
+            .single()
+            .map(b -> (Boolean) b));
+    }
 }
