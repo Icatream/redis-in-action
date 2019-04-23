@@ -3,19 +3,24 @@ package lettuce.chapter;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
 import lettuce.enums.Severity;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuples;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static lettuce.key.BaseKey.SEPARATOR;
 import static lettuce.key.C02Key.RECENT;
-import static lettuce.key.C05Key.COMMON;
+import static lettuce.key.C05Key.*;
 
 /**
  * @author YaoXunYu
@@ -24,6 +29,8 @@ import static lettuce.key.C05Key.COMMON;
 public class Chapter05 extends BaseChapter {
 
     private final Mono<String> logCommonSHA1;
+    private final Mono<String> timeSpecificCounterSHA1;
+    private final Mono<String> cleanCounterSHA1;
 
     public Chapter05(RedisReactiveCommands<String, String> comm) {
         super(comm);
@@ -31,6 +38,14 @@ public class Chapter05 extends BaseChapter {
             URL logCommon = ClassLoader.getSystemResource("lua/LogCommon.lua");
             String logCommonLua = new String(Files.readAllBytes(Paths.get(logCommon.toURI())));
             logCommonSHA1 = comm.scriptLoad(logCommonLua)
+                .cache();
+            URL timeSpecificCounter = ClassLoader.getSystemResource("lua/TimeSpecificCounter.lua");
+            String timeSpecificCounterLua = new String(Files.readAllBytes(Paths.get(timeSpecificCounter.toURI())));
+            timeSpecificCounterSHA1 = comm.scriptLoad(timeSpecificCounterLua)
+                .cache();
+            URL cleanCounter = ClassLoader.getSystemResource("lua/CleanCounter.lua");
+            String cleanCounterLua = new String(Files.readAllBytes(Paths.get(cleanCounter.toURI())));
+            cleanCounterSHA1 = comm.scriptLoad(cleanCounterLua)
                 .cache();
         } catch (IOException | URISyntaxException e) {
             throw new RuntimeException(e);
@@ -45,7 +60,6 @@ public class Chapter05 extends BaseChapter {
             .then(comm.ltrim(destination, 0, 99));
     }
 
-    //TODO 未测试
     public Mono<Boolean> logCommon(String name, String message, Severity severity, long timeout) {
         String lDes = COMMON + name + SEPARATOR + severity.value;
         String mDes = RECENT + name + SEPARATOR + severity.value;
@@ -59,6 +73,41 @@ public class Chapter05 extends BaseChapter {
             message)
             .single()
             .map(b -> (Boolean) b));
+    }
+
+    public Mono<Boolean> updateCounter(String name, int count) {
+        long now = LocalDateTime.now()
+            .atZone(ZoneOffset.systemDefault()).toEpochSecond();
+        return timeSpecificCounterSHA1.flatMap(sha -> comm.evalsha(sha,
+            ScriptOutputType.BOOLEAN,
+            new String[]{KNOWN, COUNT},
+            String.valueOf(now),
+            name,
+            String.valueOf(count))
+            .single()
+            .map(b -> (Boolean) b));
+    }
+
+    public Mono<Map<String, String>> getCounter(String name, int precision) {
+        String hashK = COUNT + precision + ":" + name;
+        return comm.hgetall(hashK);
+    }
+
+    public Flux<Boolean> cleanCounters() {
+        String sampleCount = "100";
+        AtomicInteger passes = new AtomicInteger();
+        return cleanCounterSHA1.flatMapMany(sha -> Mono.fromSupplier(() -> Tuples.of(passes.getAndIncrement(),
+            LocalDateTime.now().atZone(ZoneOffset.systemDefault()).toEpochSecond()))
+            .flatMap(tuple -> comm.evalsha(sha,
+                ScriptOutputType.BOOLEAN,
+                new String[]{KNOWN, COUNT},
+                String.valueOf(tuple.getT1()),
+                String.valueOf(tuple.getT2()),
+                sampleCount)
+                .single()
+                .map(b -> (Boolean) b))
+            .repeat())
+            .delayElements(Duration.ofSeconds(60));
     }
 
 }
