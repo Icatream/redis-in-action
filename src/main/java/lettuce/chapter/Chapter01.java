@@ -10,6 +10,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.EnumSet;
@@ -64,7 +65,7 @@ public class Chapter01 extends BaseChapter {
         return comm.incr(ARTICLE_PREFIX)
             .flatMap(id -> {
                 article.setId(id);
-                long now = LocalDateTime.now().atZone(ZoneOffset.systemDefault()).toEpochSecond();
+                long now = Instant.now().getEpochSecond();
                 article.setTime(now);
                 String voted = VOTED_PREFIX + id;
                 String a = ARTICLE_PREFIX + id;

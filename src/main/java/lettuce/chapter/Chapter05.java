@@ -15,6 +15,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -84,8 +85,7 @@ public class Chapter05 extends BaseChapter {
     }
 
     public Mono<Boolean> updateCounter(String name, int count) {
-        long now = LocalDateTime.now()
-            .atZone(ZoneOffset.systemDefault()).toEpochSecond();
+        long now = Instant.now().getEpochSecond();
         return timeSpecificCounterSHA1.flatMap(sha -> comm.evalsha(sha,
             ScriptOutputType.BOOLEAN,
             new String[]{KNOWN, COUNT},
@@ -105,7 +105,7 @@ public class Chapter05 extends BaseChapter {
         String sampleCount = "100";
         AtomicInteger passes = new AtomicInteger();
         return cleanCounterSHA1.flatMapMany(sha -> Mono.fromSupplier(() -> Tuples.of(passes.getAndIncrement(),
-            LocalDateTime.now().atZone(ZoneOffset.systemDefault()).toEpochSecond()))
+            Instant.now().getEpochSecond()))
             .flatMap(tuple -> comm.evalsha(sha,
                 ScriptOutputType.BOOLEAN,
                 new String[]{KNOWN, COUNT},
