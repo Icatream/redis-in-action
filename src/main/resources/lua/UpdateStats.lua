@@ -22,7 +22,7 @@ redis.call('zadd', tmpK2, value, 'max')
 redis.call('zunionstore', des, 2, des, tmpK1, 'aggregate', 'min')
 redis.call('zunionstore', des, 2, des, tmpK2, 'aggregate', 'max')
 redis.call('del', tmpK1, tmpK2)
-redis.call('zincrby', des, 1, 'count')
-redis.call('zincrby', des, value, 'sum')
-redis.call('zincrby', des, value ^ 2, 'sumsq')
-return true
+local r1 = redis.call('zincrby', des, 1, 'count')
+local r2 = redis.call('zincrby', des, value, 'sum')
+local r3 = redis.call('zincrby', des, value ^ 2, 'sumsq')
+return { r1, r2, r3 }

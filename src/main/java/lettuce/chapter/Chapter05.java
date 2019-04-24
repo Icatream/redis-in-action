@@ -1,6 +1,8 @@
 package lettuce.chapter;
 
+import io.lettuce.core.ScoredValue;
 import io.lettuce.core.ScriptOutputType;
+import io.lettuce.core.Value;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
 import lettuce.enums.Severity;
 import reactor.core.publisher.Flux;
@@ -15,6 +17,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -115,17 +118,34 @@ public class Chapter05 extends BaseChapter {
             .delayElements(Duration.ofSeconds(60));
     }
 
-    public Mono<Boolean> updateStats(String context, String type, int value) {
+    @SuppressWarnings("unchecked")
+    public Mono<List<String>> updateStats(String context, String type, int value) {
         String des = STATS + context + SEPARATOR + type;
         long hour = LocalDateTime.now()
             .withNano(0).withSecond(0).withMinute(0)
             .atZone(ZoneOffset.systemDefault()).toEpochSecond();
         return updateStatsSHA1.flatMap(sha -> comm.evalsha(sha,
-            ScriptOutputType.BOOLEAN,
+            ScriptOutputType.MULTI,
             new String[]{des},
             String.valueOf(hour),
             String.valueOf(value))
-            .single()
-            .map(b -> (Boolean) b));
+            .single())
+            .map(o -> (List<String>) o);
+    }
+
+    public Mono<Map<String, ScoredValue<String>>> getStats(String context, String type) {
+        String key = STATS + context + SEPARATOR + type;
+        return comm.zrangeWithScores(key, 0, -1)
+            .collectMap(Value::getValue)
+            .map(map -> {
+                double sum = map.get("sum").getScore();
+                double count = map.get("count").getScore();
+                String ave = "average";
+                map.put(ave, ScoredValue.just(sum / count, ave));
+                double sumsq = map.get("sumsq").getScore();
+                String stddev = "stddev";
+                map.put(stddev, ScoredValue.just(sumsq - Math.pow(sum, 2) / count, stddev));
+                return map;
+            });
     }
 }
