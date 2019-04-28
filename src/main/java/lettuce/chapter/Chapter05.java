@@ -1,10 +1,11 @@
 package lettuce.chapter;
 
-import io.lettuce.core.ScoredValue;
-import io.lettuce.core.ScriptOutputType;
-import io.lettuce.core.Value;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.lettuce.core.*;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
 import lettuce.enums.Severity;
+import lettuce.pojo.City;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuples;
@@ -20,7 +21,9 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import static lettuce.key.BaseKey.SEPARATOR;
 import static lettuce.key.C02Key.RECENT;
@@ -36,6 +39,8 @@ public class Chapter05 extends BaseChapter {
     private final Mono<String> timeSpecificCounterSHA1;
     private final Mono<String> cleanCounterSHA1;
     private final Mono<String> updateStatsSHA1;
+
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public Chapter05(RedisReactiveCommands<String, String> comm) {
         super(comm);
@@ -148,4 +153,50 @@ public class Chapter05 extends BaseChapter {
                 return map;
             });
     }
+
+    /**
+     * no check {@param ip}, may throw NumberFormatException
+     */
+    public static int ipToScore(String ip) {
+        return Stream.of(ip.split("\\."))
+            .mapToInt(Integer::parseInt)
+            .reduce(0, (left, right) -> left * 256 + right);
+    }
+
+    public Mono<Long> importIpsToRedisByRow(int rowIndex, int cityId, int startIpNum) {
+        String city = cityId + CITY_SEP + rowIndex;
+        return comm.zadd(IP_CITY, startIpNum, city);
+    }
+
+    public Mono<Boolean> importCitiesToRedisByRow(City city) {
+        try {
+            String field = String.valueOf(city.getLocId());
+            String json = mapper.writeValueAsString(city);
+            return comm.hset(CITY_HASH, field, json);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Mono<City> findCityByIp(String ip) {
+        int ipScore = ipToScore(ip);
+        return comm.zrevrangebyscore(IP_CITY, Range.create(ipScore, 0), Limit.create(0, 1))
+            .single()
+            .flatMap(cityId -> {
+                String id = cityId.split("_")[0];
+                return comm.hget(CITY_HASH, id);
+            })
+            .map(json -> mapper.convertValue(json, City.class));
+    }
+
+    private final AtomicBoolean isUnderMaintenance = new AtomicBoolean(false);
+
+    public void updateMaintenanceState() {
+        comm.get(IS_UNDER_MAINTENANCE)
+            .doOnNext(s -> isUnderMaintenance.set(Boolean.parseBoolean(s)))
+            .repeat()
+            .delayElements(Duration.ofSeconds(1))
+            .subscribe();
+    }
+
 }
