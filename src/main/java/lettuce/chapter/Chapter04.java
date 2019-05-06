@@ -7,11 +7,8 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,18 +27,8 @@ public class Chapter04 extends BaseChapter {
 
     public Chapter04(RedisReactiveCommands<String, String> comm) {
         super(comm);
-        try {
-            URL listItem = ClassLoader.getSystemResource("lua/ListItem.lua");
-            String listItemLua = new String(Files.readAllBytes(Paths.get(listItem.toURI())));
-            listItemSHA1 = comm.scriptLoad(listItemLua)
-                .cache();
-            URL purchaseItem = ClassLoader.getSystemResource("lua/PurchaseItem.lua");
-            String purchaseItemLua = new String(Files.readAllBytes(Paths.get(purchaseItem.toURI())));
-            purchaseItemSHA1 = comm.scriptLoad(purchaseItemLua)
-                .cache();
-        } catch (IOException | URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        listItemSHA1 = uploadScript("lua/ListItem.lua");
+        purchaseItemSHA1 = uploadScript("lua/PurchaseItem.lua");
     }
 
     //Warning: No error handler
@@ -107,7 +94,7 @@ public class Chapter04 extends BaseChapter {
 
         String item = itemId + "." + sellerId;
         //long end = LocalDateTime.now().plusSeconds(5).atZone(ZoneOffset.systemDefault()).toEpochSecond();
-        listItemSHA1.flatMap(sha -> comm.evalsha(sha,
+        listItemSHA1.flatMap(sha1 -> comm.evalsha(sha1,
             ScriptOutputType.BOOLEAN,
             new String[]{inventory, MARKET, item},
             itemIdStr, String.valueOf(price))
@@ -150,7 +137,7 @@ public class Chapter04 extends BaseChapter {
             .expectNext(true)
             .verifyComplete();
 
-        StepVerifier.create(purchaseItemSHA1.flatMap(sha -> comm.evalsha(sha,
+        StepVerifier.create(purchaseItemSHA1.flatMap(sha1 -> comm.evalsha(sha1,
             ScriptOutputType.BOOLEAN,
             new String[]{MARKET, buyer, seller, bInventory, FUNDS},
             item,

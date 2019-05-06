@@ -10,11 +10,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuples;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -44,26 +39,10 @@ public class Chapter05 extends BaseChapter {
 
     public Chapter05(RedisReactiveCommands<String, String> comm) {
         super(comm);
-        try {
-            URL logCommon = ClassLoader.getSystemResource("lua/LogCommon.lua");
-            String logCommonLua = new String(Files.readAllBytes(Paths.get(logCommon.toURI())));
-            logCommonSHA1 = comm.scriptLoad(logCommonLua)
-                .cache();
-            URL timeSpecificCounter = ClassLoader.getSystemResource("lua/TimeSpecificCounter.lua");
-            String timeSpecificCounterLua = new String(Files.readAllBytes(Paths.get(timeSpecificCounter.toURI())));
-            timeSpecificCounterSHA1 = comm.scriptLoad(timeSpecificCounterLua)
-                .cache();
-            URL cleanCounter = ClassLoader.getSystemResource("lua/CleanCounter.lua");
-            String cleanCounterLua = new String(Files.readAllBytes(Paths.get(cleanCounter.toURI())));
-            cleanCounterSHA1 = comm.scriptLoad(cleanCounterLua)
-                .cache();
-            URL updateStats = ClassLoader.getSystemResource("lua/UpdateStats.lua");
-            String updateStatsLua = new String(Files.readAllBytes(Paths.get(updateStats.toURI())));
-            updateStatsSHA1 = comm.scriptLoad(updateStatsLua)
-                .cache();
-        } catch (IOException | URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        logCommonSHA1 = uploadScript("lua/LogCommon.lua");
+        timeSpecificCounterSHA1 = uploadScript("lua/TimeSpecificCounter.lua");
+        cleanCounterSHA1 = uploadScript("lua/CleanCounter.lua");
+        updateStatsSHA1 = uploadScript("lua/UpdateStats.lua");
     }
 
     //instead of using pipeline in lettuce, using lua script
@@ -80,7 +59,7 @@ public class Chapter05 extends BaseChapter {
         long hour = LocalDateTime.now()
             .withNano(0).withSecond(0).withMinute(0)
             .atZone(ZoneOffset.systemDefault()).toEpochSecond();
-        return logCommonSHA1.flatMap(sha -> comm.evalsha(sha,
+        return logCommonSHA1.flatMap(sha1 -> comm.evalsha(sha1,
             ScriptOutputType.BOOLEAN,
             new String[]{lDes, mDes},
             String.valueOf(hour),
@@ -91,7 +70,7 @@ public class Chapter05 extends BaseChapter {
 
     public Mono<Boolean> updateCounter(String name, int count) {
         long now = Instant.now().getEpochSecond();
-        return timeSpecificCounterSHA1.flatMap(sha -> comm.evalsha(sha,
+        return timeSpecificCounterSHA1.flatMap(sha1 -> comm.evalsha(sha1,
             ScriptOutputType.BOOLEAN,
             new String[]{KNOWN, COUNT},
             String.valueOf(now),
@@ -109,9 +88,9 @@ public class Chapter05 extends BaseChapter {
     public Flux<Boolean> cleanCounters() {
         String sampleCount = "100";
         AtomicInteger passes = new AtomicInteger();
-        return cleanCounterSHA1.flatMapMany(sha -> Mono.fromSupplier(() -> Tuples.of(passes.getAndIncrement(),
+        return cleanCounterSHA1.flatMapMany(sha1 -> Mono.fromSupplier(() -> Tuples.of(passes.getAndIncrement(),
             Instant.now().getEpochSecond()))
-            .flatMap(tuple -> comm.evalsha(sha,
+            .flatMap(tuple -> comm.evalsha(sha1,
                 ScriptOutputType.BOOLEAN,
                 new String[]{KNOWN, COUNT},
                 String.valueOf(tuple.getT1()),
@@ -129,7 +108,7 @@ public class Chapter05 extends BaseChapter {
         long hour = LocalDateTime.now()
             .withNano(0).withSecond(0).withMinute(0)
             .atZone(ZoneOffset.systemDefault()).toEpochSecond();
-        return updateStatsSHA1.flatMap(sha -> comm.evalsha(sha,
+        return updateStatsSHA1.flatMap(sha1 -> comm.evalsha(sha1,
             ScriptOutputType.MULTI,
             new String[]{des},
             String.valueOf(hour),

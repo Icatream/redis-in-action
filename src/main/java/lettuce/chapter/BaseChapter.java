@@ -1,7 +1,11 @@
 package lettuce.chapter;
 
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 /**
  * @author YaoXunYu
@@ -25,5 +29,11 @@ public abstract class BaseChapter {
         StepVerifier.create(comm.scriptFlush())
             .expectNext("OK")
             .verifyComplete();
+    }
+
+    protected Mono<String> uploadScript(String path) {
+        return Mono.fromCallable(() -> new String(Files.readAllBytes(Paths.get(ClassLoader.getSystemResource(path).toURI()))))
+            .flatMap(comm::scriptLoad)
+            .cache();
     }
 }
