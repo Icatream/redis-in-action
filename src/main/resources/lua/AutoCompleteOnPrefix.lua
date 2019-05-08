@@ -9,7 +9,7 @@ local zsKey = KEYS[1]
 local limit = tonumber(KEYS[2])
 local s = ARGV[1]
 local e = ARGV[2]
-redis.call('zadd', zsKey, 1, s, 1, e)
+redis.call('zadd', zsKey, 0, s, 0, e)
 local sIndex = redis.call('zrank', zsKey, s)
 local eIndex = redis.call('zrank', zsKey, e)
 local eRange = math.min(sIndex - 1 + limit, eIndex - 2)

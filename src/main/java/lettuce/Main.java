@@ -20,12 +20,6 @@ public class Main {
         /*c.updateCounter("test", 2)
             .doOnNext(System.out::println)
             .block();*/
-        c.autoCompleteOnPrefix(0, "de", 10)
-            .doOnNext(list -> {
-                list.forEach(i -> {
-                    System.out.println(i);
-                });
-            })
-            .block();
+        c.processSoldEmailQueue();
     }
 }

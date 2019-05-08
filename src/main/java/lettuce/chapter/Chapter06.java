@@ -1,14 +1,21 @@
 package lettuce.chapter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static lettuce.key.ArticleKey.USER_PREFIX;
 import static lettuce.key.C02Key.RECENT;
+import static lettuce.key.C06Key.EMAIL_QUEUE;
 import static lettuce.key.C06Key.MEMBER;
 
 /**
@@ -59,8 +66,8 @@ public class Chapter06 extends BaseChapter {
     }
 
     @SuppressWarnings("unchecked")
-    public Mono<List<String>> autoCompleteOnPrefix(int guild, String prefix, int limit) {
-        String k = MEMBER + guild;
+    public Mono<List<String>> autoCompleteOnPrefix(int guildId, String prefix, int limit) {
+        String k = MEMBER + guildId;
         String[] prefixRange = findPrefixRange(prefix);
         return autoCompleteOnPrefixSHA1.flatMap(sha1 ->
             comm.evalsha(sha1,
@@ -71,4 +78,85 @@ public class Chapter06 extends BaseChapter {
                 .map(o -> (List<String>) o));
     }
 
+    public Mono<Long> joinGuild(int guildId, String user) {
+        return comm.zadd(MEMBER + guildId, 0, user);
+    }
+
+    public Mono<Long> leaveGuild(int guildId, String user) {
+        return comm.zrem(MEMBER + guildId, user);
+    }
+
+    public void processSoldEmailQueue() {
+        Flux.interval(Duration.ofSeconds(5))
+            .flatMap(i -> comm.lpop(EMAIL_QUEUE))
+            .flatMap(this::fakeProcessEmail)
+            .subscribe();
+    }
+
+    private Mono<String> fakeProcessEmail(String email) {
+        System.out.println(email);
+        return Mono.just("ok");
+    }
+
+    //there're nothing in callbackMap...
+    private Map<String, Function<List<String>, Mono<Object>>> callbackMap = new HashMap<>();
+    private ObjectMapper mapper = new ObjectMapper();
+
+    public void workerWatchQueue(String queue) {
+        Flux.interval(Duration.ofSeconds(5))
+            .flatMap(i -> comm.lpop(queue))
+            .transform(callbackFlux)
+            .subscribe();
+    }
+
+    public void workerWatchQueues(List<String> queue) {
+        Flux.interval(Duration.ofSeconds(5))
+            .flatMap(l -> {
+                AtomicInteger index = new AtomicInteger();
+                return Mono.fromSupplier(index::get)
+                    .flatMap(i -> comm.lpop(queue.get(i)))
+                    .repeatWhenEmpty(queue.size() - 1,
+                        f -> f.doOnNext(i -> index.incrementAndGet()))
+                    .onErrorResume(throwable -> Mono.empty());
+            })
+            .transform(callbackFlux)
+            .subscribe();
+    }
+
+    private Function<Flux<String>, Flux<Object>> callbackFlux = f -> f
+        .map(json -> mapper.convertValue(json, Callback.class))
+        .onErrorContinue(error -> true,
+            (throwable, o) -> {
+                System.out.println(o);
+                throwable.printStackTrace();
+            })
+        .flatMap(callback -> {
+            Function<List<String>, Mono<Object>> callBack = callbackMap.get(callback.name);
+            if (callBack != null) {
+                return callBack.apply(callback.args);
+            }
+            System.out.println("Unknown callback: " + callback.name);
+            return Mono.empty();
+        });
+
+    public static class Callback {
+        private String name;
+        private List<String> args;
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public List<String> getArgs() {
+            return args;
+        }
+
+        public void setArgs(List<String> args) {
+            this.args = args;
+        }
+    }
 }
