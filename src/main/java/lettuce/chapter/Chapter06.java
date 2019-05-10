@@ -2,11 +2,15 @@ package lettuce.chapter;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.lettuce.core.Range;
+import io.lettuce.core.ScoredValue;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.ZAddArgs;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -17,6 +21,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 import static lettuce.key.ArticleKey.USER_PREFIX;
 import static lettuce.key.C02Key.RECENT;
@@ -30,11 +35,13 @@ public class Chapter06 extends BaseChapter {
 
     private final Mono<String> addUpdateContactSHA1;
     private final Mono<String> autoCompleteOnPrefixSHA1;
+    private final Mono<String> sendMessageSHA1;
 
     public Chapter06(RedisReactiveCommands<String, String> comm) {
         super(comm);
         addUpdateContactSHA1 = uploadScript("lua/AddUpdateContact.lua");
         autoCompleteOnPrefixSHA1 = uploadScript("lua/AutoCompleteOnPrefix.lua");
+        sendMessageSHA1 = uploadScript("lua/SendMessage.lua");
     }
 
     public Mono<Boolean> addUpdateContact(int userId, String contact) {
@@ -244,5 +251,121 @@ public class Chapter06 extends BaseChapter {
                         }));
             })
             .subscribe();
+    }
+
+    /**
+     * @return chatId
+     * SEEN + recipients: <value>chatId</value>, <score>chat-message-id</score>
+     */
+    public Mono<Long> createChat(List<Integer> recipients) {
+        return comm.incr(CHAT_ID)
+            .flatMap(chatId -> comm.zadd(CHAT, ZAddArgs.Builder.ch(),
+                recipients.stream()
+                    .map(Object::toString)
+                    .map(i -> ScoredValue.just(0, i))
+                    .toArray((IntFunction<ScoredValue<String>[]>) ScoredValue[]::new))
+                .thenMany(Flux.fromIterable(recipients)
+                    .map(i -> SEEN + i)
+                    .flatMap(k -> comm.zadd(k, ZAddArgs.Builder.ch(), 0, chatId)))
+                .then(Mono.just(chatId)));
+    }
+
+    //将消息推入message zset, 存在顺序问题, 乱序会导致读消息时丢失. 改用lua
+    public Mono<Long> sendMessage(Long chatId, Message message) {
+        try {
+            String msg = mapper.writeValueAsString(message);
+            return sendMessageSHA1.flatMap(sha1 -> comm.evalsha(sha1,
+                ScriptOutputType.INTEGER,
+                new String[]{IDS + chatId, MSG + chatId},
+                msg)
+                .single()
+                .map(o -> (Long) o));
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static class Message {
+        private Integer senderId;
+        private String message;
+        private long time;
+
+        public Integer getSenderId() {
+            return senderId;
+        }
+
+        public void setSenderId(Integer senderId) {
+            this.senderId = senderId;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public void setMessage(String message) {
+            this.message = message;
+        }
+
+        public long getTime() {
+            return time;
+        }
+
+        public void setTime(long time) {
+            this.time = time;
+        }
+    }
+
+    /**
+     * @return chatId: List< Msg & mId >
+     */
+    public Flux<Tuple2<String, List<ScoredValue<String>>>> fetchPendingMessage(Integer recipient) {
+        return comm.zrangeWithScores(SEEN + recipient, 0, -1)
+            .flatMap(scoredValue -> {
+                String chatId = scoredValue.getValue();
+                double mid = scoredValue.getScore();
+                //redis comm已排序
+                return comm.zrangebyscoreWithScores(MSG + chatId,
+                    Range.<Double>unbounded().gt(mid))
+                    .collectList()
+                    //.collectSortedList(Comparator.comparingDouble(ScoredValue::getScore))
+                    .flatMap(list -> {
+                        //TODO 检查最大 or 最小
+                        double lastMId = list.get(list.size() - 1).getScore();
+                        //修改 chat:... 中 recipient 的 mid 为最大 mid
+                        return comm.zadd(CHAT + chatId, ZAddArgs.Builder.ch(), lastMId, recipient)
+                            //清理 chat:... 中 mid<lastMId
+                            .then(comm.zremrangebyscore(MSG + chatId, Range.<Double>unbounded().lt(lastMId)))
+                            .thenReturn(Tuples.of(chatId, list));
+                    });
+            });
+    }
+
+    public Mono<Long> joinChat(Integer chatId, Integer userId) {
+        return comm.get(IDS + chatId)
+            .flatMap(messageId -> {
+                Integer mid = Integer.valueOf(messageId);
+                return comm.zadd(CHAT + chatId, mid, userId)
+                    .then(comm.zadd(SEEN + userId, mid, chatId));
+            });
+    }
+
+    public Mono<Long> leaveChat(Integer chatId, Integer userId) {
+        String c = chatId.toString();
+        String u = userId.toString();
+        String chat = CHAT + c;
+        return comm.zrem(chat, u)
+            .then(comm.zrem(SEEN + u, c))
+            .then(comm.zcard(chat)
+                .defaultIfEmpty(0L)
+                .flatMap(size -> {
+                    String msg = MSG + c;
+                    if (size == 0) {
+                        return comm.del(msg, IDS + c);
+                    } else {
+                        return comm.zrangeWithScores(chat, 0, 0)
+                            .single()
+                            .flatMap(sv -> comm.zremrangebyscore(msg, Range.<Double>unbounded().lt(sv.getScore())));
+                    }
+                }));
     }
 }

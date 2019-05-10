@@ -6,6 +6,8 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
 import lettuce.chapter.Chapter06;
 
+import java.time.ZonedDateTime;
+
 /**
  * @author YaoXunYu
  * created on 04/17/2019
@@ -20,6 +22,11 @@ public class Main {
         /*c.updateCounter("test", 2)
             .doOnNext(System.out::println)
             .block();*/
-        c.processSoldEmailQueue();
+        Chapter06.Message m = new Chapter06.Message();
+        m.setSenderId(14);
+        m.setMessage("Msg by 14");
+        m.setTime(ZonedDateTime.now().toEpochSecond());
+        c.sendMessage(1L, m)
+            .block();
     }
 }

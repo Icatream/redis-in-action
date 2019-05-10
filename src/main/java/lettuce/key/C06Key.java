@@ -10,4 +10,8 @@ public interface C06Key extends BaseKey {
     String DELAYED = "delayed" + SEPARATOR;
     String EMAIL_QUEUE = QUEUE + "email";
     String LOCK = "lock" + SEPARATOR;
+    String CHAT = "chat" + SEPARATOR;
+    String CHAT_ID = IDS + CHAT;
+    String SEEN = "seen";
+    String MSG = "msg" + SEPARATOR;
 }
