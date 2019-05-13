@@ -265,7 +265,7 @@ public class Chapter06 extends BaseChapter {
      */
     public Mono<Long> createChat(List<Integer> recipients) {
         return comm.incr(CHAT_ID)
-            .flatMap(chatId -> comm.zadd(CHAT,
+            .flatMap(chatId -> comm.zadd(CHAT + chatId,
                 recipients.stream()
                     .map(Object::toString)
                     .map(i -> ScoredValue.just(0, i))
