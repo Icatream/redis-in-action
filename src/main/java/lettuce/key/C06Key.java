@@ -14,4 +14,6 @@ public interface C06Key extends BaseKey {
     String CHAT_ID = IDS + CHAT;
     String SEEN = "seen";
     String MSG = "msg" + SEPARATOR;
+    String DAILY = "daily" + SEPARATOR;
+    String DAILY_COUNTRY = DAILY + "country" + SEPARATOR;
 }

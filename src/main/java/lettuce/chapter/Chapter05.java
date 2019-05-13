@@ -65,7 +65,7 @@ public class Chapter05 extends BaseChapter {
             String.valueOf(hour),
             message)
             .single()
-            .map(b -> (Boolean) b));
+            .cast(Boolean.class));
     }
 
     public Mono<Boolean> updateCounter(String name, int count) {
@@ -77,7 +77,7 @@ public class Chapter05 extends BaseChapter {
             name,
             String.valueOf(count))
             .single()
-            .map(b -> (Boolean) b));
+            .cast(Boolean.class));
     }
 
     public Mono<Map<String, String>> getCounter(String name, int precision) {
@@ -97,7 +97,7 @@ public class Chapter05 extends BaseChapter {
                 String.valueOf(tuple.getT2()),
                 sampleCount)
                 .single()
-                .map(b -> (Boolean) b))
+                .cast(Boolean.class))
             .repeat())
             .delayElements(Duration.ofSeconds(60));
     }

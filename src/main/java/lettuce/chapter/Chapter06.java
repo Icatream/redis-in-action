@@ -7,18 +7,24 @@ import io.lettuce.core.ScoredValue;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.ZAddArgs;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
+import lettuce.pojo.City;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -50,7 +56,7 @@ public class Chapter06 extends BaseChapter {
             new String[]{getUserContactKey(userId)},
             contact)
             .single()
-            .map(b -> (Boolean) b));
+            .cast(Boolean.class));
     }
 
     public Mono<Long> removeContact(int userId, String contact) {
@@ -259,14 +265,14 @@ public class Chapter06 extends BaseChapter {
      */
     public Mono<Long> createChat(List<Integer> recipients) {
         return comm.incr(CHAT_ID)
-            .flatMap(chatId -> comm.zadd(CHAT, ZAddArgs.Builder.ch(),
+            .flatMap(chatId -> comm.zadd(CHAT,
                 recipients.stream()
                     .map(Object::toString)
                     .map(i -> ScoredValue.just(0, i))
                     .toArray((IntFunction<ScoredValue<String>[]>) ScoredValue[]::new))
                 .thenMany(Flux.fromIterable(recipients)
                     .map(i -> SEEN + i)
-                    .flatMap(k -> comm.zadd(k, ZAddArgs.Builder.ch(), 0, chatId)))
+                    .flatMap(k -> comm.zadd(k, 0, chatId)))
                 .then(Mono.just(chatId)));
     }
 
@@ -316,6 +322,9 @@ public class Chapter06 extends BaseChapter {
     }
 
     /**
+     * Warning!!! 当提取msg的客户端挂掉, msg在未处理前丢失
+     * 改用回调等形式, 在对msg操作完成后update redis
+     *
      * @return chatId: List< Msg & mId >
      */
     public Flux<Tuple2<String, List<ScoredValue<String>>>> fetchPendingMessage(Integer recipient) {
@@ -332,7 +341,7 @@ public class Chapter06 extends BaseChapter {
                         //TODO 检查最大 or 最小
                         double lastMId = list.get(list.size() - 1).getScore();
                         //修改 chat:... 中 recipient 的 mid 为最大 mid
-                        return comm.zadd(CHAT + chatId, ZAddArgs.Builder.ch(), lastMId, recipient)
+                        return comm.zadd(CHAT + chatId, lastMId, recipient)
                             //清理 chat:... 中 mid<lastMId
                             .then(comm.zremrangebyscore(MSG + chatId, Range.<Double>unbounded().lt(lastMId)))
                             .thenReturn(Tuples.of(chatId, list));
@@ -368,4 +377,31 @@ public class Chapter06 extends BaseChapter {
                     }
                 }));
     }
+
+    private ConcurrentMap<LocalDate, ConcurrentMap<String, Integer>> aggregates = new ConcurrentHashMap<>();
+
+    public Mono<String> dailyCountryAggregate(String ip, LocalDate day, Function<String, Mono<City>> findCityByIp) {
+        return findCityByIp.apply(ip)
+            .map(City::getCountry)
+            .doOnNext(country -> {
+                aggregates.putIfAbsent(day, new ConcurrentHashMap<>());
+                aggregates.get(day)
+                    .merge(country, 1, (ov, v) -> ov + 1);
+            });
+    }
+
+    /**
+     * 多个日志处理客户端时,会相互覆写country的value.
+     * 改用lua script,增加zadd-combine操作
+     */
+    public Mono<Long> dailyCountryStorage(LocalDate day) {
+        return Mono.justOrEmpty(aggregates.get(day))
+            .map(map -> map.entrySet()
+                .stream()
+                .map(entry -> ScoredValue.just(entry.getValue(), entry.getKey())))
+            .flatMap(stream -> comm.zadd(DAILY_COUNTRY + day,
+                stream.toArray((IntFunction<ScoredValue<String>[]>) ScoredValue[]::new)))
+            .doOnSuccess(l -> aggregates.remove(day));
+    }
+
 }
