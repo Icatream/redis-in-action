@@ -16,20 +16,16 @@ import reactor.util.function.Tuples;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.*;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
-import java.util.stream.BaseStream;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
+import java.util.stream.*;
 
 import static lettuce.key.ArticleKey.USER_PREFIX;
 import static lettuce.key.C02Key.RECENT;
@@ -297,25 +293,25 @@ public class Chapter06 extends BaseChapter {
     }
 
     public static class Message {
-        private Integer senderId;
+        private String sender;
         private String message;
         private long time;
 
         public Message() {
         }
 
-        public Message(Integer senderId, String message, long time) {
-            this.senderId = senderId;
+        public Message(String sender, String message, long time) {
+            this.sender = sender;
             this.message = message;
             this.time = time;
         }
 
-        public Integer getSenderId() {
-            return senderId;
+        public String getSender() {
+            return sender;
         }
 
-        public void setSenderId(Integer senderId) {
-            this.senderId = senderId;
+        public void setSender(String sender) {
+            this.sender = sender;
         }
 
         public String getMessage() {
@@ -400,7 +396,7 @@ public class Chapter06 extends BaseChapter {
             .doOnNext(country -> {
                 aggregates.putIfAbsent(day, new ConcurrentHashMap<>());
                 aggregates.get(day)
-                    .merge(country, 1, (ov, v) -> ov + 1);
+                    .merge(country, 1, (ov, v) -> ov + v);
             });
     }
 
@@ -445,12 +441,18 @@ public class Chapter06 extends BaseChapter {
                         .flatMap(l -> cleanLogInRedis(cid, processorCount)
                             .thenReturn(l)))
                     //put log file by lines
-                    .flatMap(size -> Flux.using(() -> Files.lines(log),
-                        Flux::fromStream,
-                        BaseStream::close)
-                        .flatMap(line -> comm.append(cid + log.getFileName().toString(), line))
-                        .then(sendMessage(cid, new Message(0, source, ZonedDateTime.now().toEpochSecond()))
-                            .doOnNext(l -> cache.offer(Tuples.of(log, size))))))
+                    .flatMap(size -> {
+                        String logPath = log.getFileName().toString();
+                        return Flux.using(() -> Files.lines(log),
+                            Flux::fromStream,
+                            BaseStream::close)
+                            .map(line -> line + "\n")
+                            .flatMap(line -> comm.append(cid + logPath, line))
+                            //send log ready msg
+                            .then(sendMessage(cid, new Message(source, logPath, ZonedDateTime.now().toEpochSecond()))
+                                .doOnNext(l -> cache.offer(Tuples.of(log, size))));
+                    }))
+                .then(sendMessage(cid, new Message(source, PROCESS_FINISH_SUFFIX, ZonedDateTime.now().toEpochSecond())))
                 //clean logs
                 .thenMany(Mono.fromSupplier(() -> cache.bytesInRedis.get())
                     .repeat()
@@ -488,5 +490,68 @@ public class Chapter06 extends BaseChapter {
             bytesInRedis.accumulateAndGet(tuple.getT2(), (prev, n) -> prev - n);
         }
     }
+
+    public void processLogsFromRedis(Integer recipient, Function<String, Mono<Void>> callback) {
+        /*fetchPendingMessage(recipient)
+            .flatMap(tuple -> {
+                Flux.fromIterable(tuple.getT2())
+                    .map(ScoredValue::getValue)
+                    .map(s -> mapper.convertValue(s, Message.class))
+                    .filter(msg -> PROCESS_FINISH_SUFFIX.equals(msg.message))
+                    .flatMap(msg -> {
+                        String logPath = msg.getMessage();
+
+                    })
+            })*/
+    }
+
+    public BiFunction<Tuple2<Stream<String>, String>, String, Tuple2<Stream<String>, String>> accumulator = (tuple, str) -> {
+        String s = tuple.getT2() + str;
+        int index = s.lastIndexOf("\n") + 1;
+        if (index == 0) {
+            return Tuples.of(Stream.empty(), s);
+        } else if (index == s.length()) {
+            return Tuples.of(createStringStream(s), "");
+        } else {
+            return Tuples.of(createStringStream(s.substring(0, index)), s.substring(index));
+        }
+    };
+    private BiFunction<String, RedisReactiveCommands<String, String>, Flux<String>> readLines = (key, comm) -> {
+        long blockSize = 2 ^ 17;
+        AtomicLong pos = new AtomicLong();
+        return Mono.fromSupplier(() -> pos.getAndAccumulate(blockSize, (pv, v) -> pv + v))
+            .flatMap(p -> comm.getrange(key, p, p + blockSize - 1))
+            .repeat()
+            .takeWhile(s -> !"".equals(s))
+            .scan(Tuples.of(Stream.empty(), ""), accumulator)
+            .flatMap(tuple -> Flux.fromStream(tuple.getT1()));
+    };
+
+    private Stream<String> createStringStream(String string) {
+        Iterator<String> iterator = new Iterator<String>() {
+            private final String s = string;
+            private int i;
+
+            @Override
+            public boolean hasNext() {
+                return s.indexOf("\n", i) >= 0;
+            }
+
+            @Override
+            public String next() {
+                int n = s.indexOf("\n", i) + 1;
+                String sub = s.substring(i, n);
+                i = n;
+                return sub;
+            }
+        };
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator,
+            Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.IMMUTABLE),
+            false);
+    }
+
+    /*private BiFunction<String, RedisReactiveCommands<String, String>, Void> readBlocksGZ = (key, comm) -> {
+
+    }*/
 
 }
