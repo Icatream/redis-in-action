@@ -15,19 +15,21 @@ import reactor.util.function.Tuples;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.stream.BaseStream;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static lettuce.key.ArticleKey.USER_PREFIX;
 import static lettuce.key.C02Key.RECENT;
@@ -263,17 +265,20 @@ public class Chapter06 extends BaseChapter {
      * @return chatId
      * SEEN + recipients: <value>chatId</value>, <score>chat-message-id</score>
      */
-    public Mono<Long> createChat(List<Integer> recipients) {
+    public Mono<Long> createChat(List<String> recipients) {
         return comm.incr(CHAT_ID)
-            .flatMap(chatId -> comm.zadd(CHAT + chatId,
-                recipients.stream()
-                    .map(Object::toString)
-                    .map(i -> ScoredValue.just(0, i))
-                    .toArray((IntFunction<ScoredValue<String>[]>) ScoredValue[]::new))
-                .thenMany(Flux.fromIterable(recipients)
-                    .map(i -> SEEN + i)
-                    .flatMap(k -> comm.zadd(k, 0, chatId)))
-                .then(Mono.just(chatId)));
+            .flatMap(chatId -> createChat(recipients, chatId));
+    }
+
+    public Mono<Long> createChat(List<String> recipients, Long chatId) {
+        return comm.zadd(CHAT + chatId,
+            recipients.stream()
+                .map(r -> ScoredValue.just(0, r))
+                .toArray((IntFunction<ScoredValue<String>[]>) ScoredValue[]::new))
+            .thenMany(Flux.fromIterable(recipients)
+                .map(r -> SEEN + r)
+                .flatMap(k -> comm.zadd(k, 0, chatId)))
+            .then(Mono.just(chatId));
     }
 
     //将消息推入message zset, 存在顺序问题, 乱序会导致读消息时丢失. 改用lua
@@ -285,7 +290,7 @@ public class Chapter06 extends BaseChapter {
                 new String[]{IDS + chatId, MSG + chatId},
                 msg)
                 .single()
-                .map(o -> (Long) o));
+                .cast(Long.class));
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -295,6 +300,15 @@ public class Chapter06 extends BaseChapter {
         private Integer senderId;
         private String message;
         private long time;
+
+        public Message() {
+        }
+
+        public Message(Integer senderId, String message, long time) {
+            this.senderId = senderId;
+            this.message = message;
+            this.time = time;
+        }
 
         public Integer getSenderId() {
             return senderId;
@@ -322,8 +336,8 @@ public class Chapter06 extends BaseChapter {
     }
 
     /**
-     * Warning!!! 当提取msg的客户端挂掉, msg在未处理前丢失
-     * 改用回调等形式, 在对msg操作完成后update redis
+     * 当提取msg的客户端挂掉, msg在未处理前丢失
+     * TODO 改用回调等形式, 在对msg操作完成后update redis
      *
      * @return chatId: List< Msg & mId >
      */
@@ -333,8 +347,7 @@ public class Chapter06 extends BaseChapter {
                 String chatId = scoredValue.getValue();
                 double mid = scoredValue.getScore();
                 //redis comm已排序
-                return comm.zrangebyscoreWithScores(MSG + chatId,
-                    Range.<Double>unbounded().gt(mid))
+                return comm.zrangebyscoreWithScores(MSG + chatId, Range.<Double>unbounded().gt(mid))
                     .collectList()
                     //.collectSortedList(Comparator.comparingDouble(ScoredValue::getScore))
                     .flatMap(list -> {
@@ -378,6 +391,7 @@ public class Chapter06 extends BaseChapter {
                 }));
     }
 
+    //day:country:counter
     private ConcurrentMap<LocalDate, ConcurrentMap<String, Integer>> aggregates = new ConcurrentHashMap<>();
 
     public Mono<String> dailyCountryAggregate(String ip, LocalDate day, Function<String, Mono<City>> findCityByIp) {
@@ -391,17 +405,88 @@ public class Chapter06 extends BaseChapter {
     }
 
     /**
-     * 多个日志处理客户端时,会相互覆写country的value.
-     * 改用lua script,增加zadd-combine操作
+     * 多个日志处理客户端时,会相互覆写redis中country:counter.
+     * 改用lua script,增加zadd-combine(array)操作
      */
     public Mono<Long> dailyCountryStorage(LocalDate day) {
         return Mono.justOrEmpty(aggregates.get(day))
             .map(map -> map.entrySet()
                 .stream()
-                .map(entry -> ScoredValue.just(entry.getValue(), entry.getKey())))
-            .flatMap(stream -> comm.zadd(DAILY_COUNTRY + day,
-                stream.toArray((IntFunction<ScoredValue<String>[]>) ScoredValue[]::new)))
+                .map(entry -> ScoredValue.just(entry.getValue(), entry.getKey()))
+                .toArray((IntFunction<ScoredValue<String>[]>) ScoredValue[]::new))
+            .flatMap(array -> comm.zadd(DAILY_COUNTRY + day, array))
             .doOnSuccess(l -> aggregates.remove(day));
+    }
+
+    /**
+     * 6.6.2
+     * 与6.6.1完全不同,之前是本地聚合计算,结果存入redis.
+     * 这里要将整个日志文件写入redis???
+     * 1份日志文件会被所有的recipient读取处理???
+     */
+    private Cache cache = new Cache();
+
+    public void copyLogsToRedis(Path path, Long channel, int processorCount, long limit) {
+        final String source = "Source";
+        List<String> members = IntStream.rangeClosed(1, processorCount)
+            .mapToObj(i -> "LogProcessor" + i)
+            .collect(Collectors.toList());
+        //add sender
+        members.add(source);
+        createChat(members, channel)
+            .flatMapMany(cid -> Flux.using(() -> Files.walk(path, 1), Flux::fromStream, BaseStream::close)
+                .filter(p -> Files.isRegularFile(p))
+                .filter(p -> !p.equals(path))
+                .flatMap(log -> Mono.fromCallable(() -> Files.size(log)).cache()
+                    .filter(size -> cache.bytesInRedis.get() + size < limit)
+                    //clean redis, until can put log file
+                    .repeatWhenEmpty(f -> f
+                        .delayElements(Duration.ofSeconds(1))
+                        .flatMap(l -> cleanLogInRedis(cid, processorCount)
+                            .thenReturn(l)))
+                    //put log file by lines
+                    .flatMap(size -> Flux.using(() -> Files.lines(log),
+                        Flux::fromStream,
+                        BaseStream::close)
+                        .flatMap(line -> comm.append(cid + log.getFileName().toString(), line))
+                        .then(sendMessage(cid, new Message(0, source, ZonedDateTime.now().toEpochSecond()))
+                            .doOnNext(l -> cache.offer(Tuples.of(log, size))))))
+                //clean logs
+                .thenMany(Mono.fromSupplier(() -> cache.bytesInRedis.get())
+                    .repeat()
+                    .delayElements(Duration.ofSeconds(1))
+                    .takeWhile(size -> size > 0)
+                    .flatMap(size -> cleanLogInRedis(cid, processorCount))))
+            .subscribe();
+
+    }
+
+    public Mono<Long> cleanLogInRedis(Long chatId, int processorCount) {
+        return Mono.justOrEmpty(cache.waiting.peek())
+            .flatMap(tuple -> {
+                String log = chatId + SEPARATOR + tuple.getT1().getFileName();
+                String logProcessCount = log + PROCESS_FINISH_SUFFIX;
+                return comm.get(logProcessCount)
+                    .map(Integer::valueOf)
+                    .filter(i -> i == processorCount)
+                    .flatMap(i -> comm.del(log, logProcessCount))
+                    .doOnNext(l -> cache.remove(tuple));
+            });
+    }
+
+    private static class Cache {
+        private AtomicLong bytesInRedis = new AtomicLong();
+        private ConcurrentLinkedQueue<Tuple2<Path, Long>> waiting = new ConcurrentLinkedQueue<>();
+
+        private void offer(Tuple2<Path, Long> tuple) {
+            waiting.offer(tuple);
+            bytesInRedis.accumulateAndGet(tuple.getT2(), (prev, n) -> prev + n);
+        }
+
+        private void remove(Tuple2<Path, Long> tuple) {
+            waiting.remove(tuple);
+            bytesInRedis.accumulateAndGet(tuple.getT2(), (prev, n) -> prev - n);
+        }
     }
 
 }

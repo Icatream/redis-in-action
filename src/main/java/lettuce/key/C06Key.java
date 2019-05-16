@@ -16,4 +16,5 @@ public interface C06Key extends BaseKey {
     String MSG = "msg" + SEPARATOR;
     String DAILY = "daily" + SEPARATOR;
     String DAILY_COUNTRY = DAILY + "country" + SEPARATOR;
+    String PROCESS_FINISH_SUFFIX = SEPARATOR + "done";
 }
