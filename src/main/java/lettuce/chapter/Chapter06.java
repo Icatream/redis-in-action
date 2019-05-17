@@ -498,7 +498,7 @@ public class Chapter06 extends BaseChapter {
     }
 
     /**
-     * TODO no test
+     * TODO not work with gzip, change Flux<String> into ByteBufInputStream might help. Need ByteArrayCodec and ByteBufInputStream maybe.
      */
     public void processLogsFromRedis(Integer recipient,
                                      RedisReactiveCommands<String, String> c,

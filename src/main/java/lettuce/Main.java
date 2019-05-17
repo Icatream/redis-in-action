@@ -24,7 +24,11 @@ public class Main {
         //readLineTest(commands);
         RedisReactiveCommands<String, String> c = client.connect(CompressionCodec.valueCompressor(StringCodec.UTF8, CompressionCodec.CompressionType.GZIP)).reactive();
         //c.append("gz","abcde\\n\\nfg\\nhij\\nklmn\\nopqrst\\nuvwxyz\\n").block();
-        c.get("gz")
+        /*c.get("gz")
+            .doOnNext(System.out::println)
+            .block();*/
+
+        c.getrange("gz",0,100)
             .doOnNext(System.out::println)
             .block();
     }
