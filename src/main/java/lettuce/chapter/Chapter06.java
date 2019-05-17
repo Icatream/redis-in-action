@@ -2,11 +2,10 @@ package lettuce.chapter;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.lettuce.core.Range;
-import io.lettuce.core.ScoredValue;
-import io.lettuce.core.ScriptOutputType;
-import io.lettuce.core.ZAddArgs;
+import io.lettuce.core.*;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
+import io.lettuce.core.codec.CompressionCodec;
+import io.lettuce.core.codec.StringCodec;
 import lettuce.Supports;
 import lettuce.pojo.City;
 import reactor.core.publisher.Flux;
@@ -498,18 +497,30 @@ public class Chapter06 extends BaseChapter {
         }
     }
 
-    public void processLogsFromRedis(Integer recipient, Function<String, Mono<Void>> callback) {
-        /*fetchPendingMessage(recipient)
-            .flatMap(tuple -> {
-                Flux.fromIterable(tuple.getT2())
-                    .map(ScoredValue::getValue)
-                    .map(s -> mapper.convertValue(s, Message.class))
-                    .filter(msg -> PROCESS_FINISH_SUFFIX.equals(msg.message))
-                    .flatMap(msg -> {
-                        String logPath = msg.getMessage();
+    /**
+     * TODO no test
+     */
+    public void processLogsFromRedis(Integer recipient,
+                                     RedisReactiveCommands<String, String> c,
+                                     Function<String, Mono<String>> callback,
+                                     Mono<Void> ending) {
+        fetchPendingMessage(recipient)
+            .flatMap(tuple -> Flux.fromIterable(tuple.getT2())
+                .map(ScoredValue::getValue)
+                .map(s -> mapper.convertValue(s, Message.class))
+                .filter(msg -> PROCESS_FINISH_SUFFIX.equals(msg.message))
+                .flatMap(msg -> {
+                    String key = tuple.getT1() + msg.getMessage();
+                    return readLines.apply(key, c)
+                        .flatMap(callback)
+                        .then(ending)
+                        .then(comm.incr(key + PROCESS_FINISH_SUFFIX));
+                }))
+            .subscribe();
+    }
 
-                    })
-            })*/
+    public RedisReactiveCommands<String, String> getGZipCommands(RedisClient client) {
+        return client.connect(CompressionCodec.valueCompressor(StringCodec.UTF8, CompressionCodec.CompressionType.GZIP)).reactive();
     }
 
     private BiFunction<String, RedisReactiveCommands<String, String>, Flux<String>> readLines = (key, comm) -> {
@@ -522,9 +533,5 @@ public class Chapter06 extends BaseChapter {
             .scan(Tuples.of(Stream.empty(), ""), Supports.accumulator)
             .flatMap(tuple -> Flux.fromStream(tuple.getT1()));
     };
-
-    /*private BiFunction<String, RedisReactiveCommands<String, String>, Void> readBlocksGZ = (key, comm) -> {
-
-    }*/
 
 }
