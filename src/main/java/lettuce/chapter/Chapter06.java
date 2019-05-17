@@ -7,6 +7,7 @@ import io.lettuce.core.ScoredValue;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.ZAddArgs;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
+import lettuce.Supports;
 import lettuce.pojo.City;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -16,7 +17,10 @@ import reactor.util.function.Tuples;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.*;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
@@ -25,7 +29,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
-import java.util.stream.*;
+import java.util.stream.BaseStream;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static lettuce.key.ArticleKey.USER_PREFIX;
 import static lettuce.key.C02Key.RECENT;
@@ -505,17 +512,6 @@ public class Chapter06 extends BaseChapter {
             })*/
     }
 
-    public BiFunction<Tuple2<Stream<String>, String>, String, Tuple2<Stream<String>, String>> accumulator = (tuple, str) -> {
-        String s = tuple.getT2() + str;
-        int index = s.lastIndexOf("\n") + 1;
-        if (index == 0) {
-            return Tuples.of(Stream.empty(), s);
-        } else if (index == s.length()) {
-            return Tuples.of(createStringStream(s), "");
-        } else {
-            return Tuples.of(createStringStream(s.substring(0, index)), s.substring(index));
-        }
-    };
     private BiFunction<String, RedisReactiveCommands<String, String>, Flux<String>> readLines = (key, comm) -> {
         long blockSize = 2 ^ 17;
         AtomicLong pos = new AtomicLong();
@@ -523,32 +519,9 @@ public class Chapter06 extends BaseChapter {
             .flatMap(p -> comm.getrange(key, p, p + blockSize - 1))
             .repeat()
             .takeWhile(s -> !"".equals(s))
-            .scan(Tuples.of(Stream.empty(), ""), accumulator)
+            .scan(Tuples.of(Stream.empty(), ""), Supports.accumulator)
             .flatMap(tuple -> Flux.fromStream(tuple.getT1()));
     };
-
-    private Stream<String> createStringStream(String string) {
-        Iterator<String> iterator = new Iterator<String>() {
-            private final String s = string;
-            private int i;
-
-            @Override
-            public boolean hasNext() {
-                return s.indexOf("\n", i) >= 0;
-            }
-
-            @Override
-            public String next() {
-                int n = s.indexOf("\n", i) + 1;
-                String sub = s.substring(i, n);
-                i = n;
-                return sub;
-            }
-        };
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator,
-            Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.IMMUTABLE),
-            false);
-    }
 
     /*private BiFunction<String, RedisReactiveCommands<String, String>, Void> readBlocksGZ = (key, comm) -> {
 
