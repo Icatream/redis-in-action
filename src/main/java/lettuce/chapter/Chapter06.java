@@ -4,8 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.lettuce.core.*;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
-import io.lettuce.core.codec.CompressionCodec;
-import io.lettuce.core.codec.StringCodec;
 import lettuce.Supports;
 import lettuce.pojo.City;
 import reactor.core.publisher.Flux;
@@ -43,12 +41,15 @@ import static lettuce.key.C06Key.*;
  */
 public class Chapter06 extends BaseChapter {
 
+    private final RedisReactiveCommands<String, String> gzComm;
+
     private final Mono<String> addUpdateContactSHA1;
     private final Mono<String> autoCompleteOnPrefixSHA1;
     private final Mono<String> sendMessageSHA1;
 
-    public Chapter06(RedisReactiveCommands<String, String> comm) {
-        super(comm);
+    public Chapter06(RedisClient client) {
+        super(client.connect().reactive());
+        gzComm = getGZipCommands(client);
         addUpdateContactSHA1 = uploadScript("lua/AddUpdateContact.lua");
         autoCompleteOnPrefixSHA1 = uploadScript("lua/AutoCompleteOnPrefix.lua");
         sendMessageSHA1 = uploadScript("lua/SendMessage.lua");
@@ -498,36 +499,46 @@ public class Chapter06 extends BaseChapter {
     }
 
     /**
-     * TODO not work with gzip, change Flux<String> into ByteBufInputStream might help. Need ByteArrayCodec and ByteBufInputStream maybe.
+     * TODO test...
      */
-    public void processLogsFromRedis(Integer recipient,
-                                     RedisReactiveCommands<String, String> c,
-                                     Function<String, Mono<String>> callback,
-                                     Mono<Void> ending) {
-        fetchPendingMessage(recipient)
-            .flatMap(tuple -> Flux.fromIterable(tuple.getT2())
-                .map(ScoredValue::getValue)
-                .map(s -> mapper.convertValue(s, Message.class))
-                .filter(msg -> PROCESS_FINISH_SUFFIX.equals(msg.message))
-                .flatMap(msg -> {
-                    String key = tuple.getT1() + msg.getMessage();
-                    return readLines.apply(key, c)
+    public void processLogsByLine(Integer recipient,
+                                  Function<String, Mono<String>> callback,
+                                  Mono<Void> ending) {
+        getLogFileFromRedis(recipient)
+            .flatMap(
+                flux -> flux.flatMap(
+                    key -> readLines.apply(key, comm)
                         .flatMap(callback)
                         .then(ending)
-                        .then(comm.incr(key + PROCESS_FINISH_SUFFIX));
-                }))
+                        .then(comm.incr(key + PROCESS_FINISH_SUFFIX))))
             .subscribe();
     }
 
-    public RedisReactiveCommands<String, String> getGZipCommands(RedisClient client) {
-        return client.connect(CompressionCodec.valueCompressor(StringCodec.UTF8, CompressionCodec.CompressionType.GZIP)).reactive();
+    public void processGZipLogs(Integer recipient,
+                                Function<String, Mono<String>> callback,
+                                Mono<Void> ending) {
+        getLogFileFromRedis(recipient)
+            .flatMap(flux -> flux.flatMap(comm::get)
+                .flatMap(log -> Flux.fromArray(log.split("\n"))
+                    .flatMap(callback)
+                    .then(ending)))
+            .subscribe();
     }
 
-    private BiFunction<String, RedisReactiveCommands<String, String>, Flux<String>> readLines = (key, comm) -> {
+    private Flux<Flux<String>> getLogFileFromRedis(Integer recipient) {
+        return fetchPendingMessage(recipient)
+            .map(tuple -> Flux.fromIterable(tuple.getT2())
+                .map(ScoredValue::getValue)
+                .map(s -> mapper.convertValue(s, Message.class))
+                .filter(msg -> PROCESS_FINISH_SUFFIX.equals(msg.message))
+                .map(msg -> tuple.getT1() + msg.getMessage()));
+    }
+
+    private BiFunction<String, RedisReactiveCommands<String, String>, Flux<String>> readLines = (key, commands) -> {
         long blockSize = 2 ^ 17;
         AtomicLong pos = new AtomicLong();
         return Mono.fromSupplier(() -> pos.getAndAccumulate(blockSize, (pv, v) -> pv + v))
-            .flatMap(p -> comm.getrange(key, p, p + blockSize - 1))
+            .flatMap(p -> commands.getrange(key, p, p + blockSize - 1))
             .repeat()
             .takeWhile(s -> !"".equals(s))
             .scan(Tuples.of(Stream.empty(), ""), Supports.accumulator)

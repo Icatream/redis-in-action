@@ -1,6 +1,9 @@
 package lettuce.chapter;
 
+import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
+import io.lettuce.core.codec.CompressionCodec;
+import io.lettuce.core.codec.StringCodec;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -31,9 +34,13 @@ public abstract class BaseChapter {
             .verifyComplete();
     }
 
-    protected Mono<String> uploadScript(String path) {
+    protected final Mono<String> uploadScript(String path) {
         return Mono.fromCallable(() -> new String(Files.readAllBytes(Paths.get(ClassLoader.getSystemResource(path).toURI()))))
             .flatMap(comm::scriptLoad)
             .cache();
+    }
+
+    public static RedisReactiveCommands<String, String> getGZipCommands(RedisClient client) {
+        return client.connect(CompressionCodec.valueCompressor(StringCodec.UTF8, CompressionCodec.CompressionType.GZIP)).reactive();
     }
 }
