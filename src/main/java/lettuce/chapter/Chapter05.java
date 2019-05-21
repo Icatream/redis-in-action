@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.lettuce.core.*;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
 import lettuce.enums.Severity;
+import lettuce.key.Key02;
 import lettuce.pojo.City;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -21,8 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 import static lettuce.key.BaseKey.SEPARATOR;
-import static lettuce.key.C02Key.RECENT;
-import static lettuce.key.C05Key.*;
+import static lettuce.key.Key05.*;
 
 /**
  * @author YaoXunYu
@@ -47,15 +47,15 @@ public class Chapter05 extends BaseChapter {
 
     //instead of using pipeline in lettuce, using lua script
     public Mono<String> logRecent(String name, Severity severity, String message) {
-        String destination = RECENT + name + SEPARATOR + severity.value;
+        String destination = Key02.RECENT_SEVERITY(name, severity);
         String msg = LocalDateTime.now() + " " + message;
         return comm.lpush(destination, msg)
             .then(comm.ltrim(destination, 0, 99));
     }
 
     public Mono<Boolean> logCommon(String name, String message, Severity severity, long timeout) {
-        String lDes = COMMON + name + SEPARATOR + severity.value;
-        String mDes = RECENT + name + SEPARATOR + severity.value;
+        String lDes = COMMON_SEVERITY(name, severity);
+        String mDes = Key02.RECENT_SEVERITY(name, severity);
         long hour = LocalDateTime.now()
             .withNano(0).withSecond(0).withMinute(0)
             .atZone(ZoneOffset.systemDefault()).toEpochSecond();
@@ -143,15 +143,14 @@ public class Chapter05 extends BaseChapter {
     }
 
     public Mono<Long> importIpsToRedisByRow(int rowIndex, int cityId, int startIpNum) {
-        String city = cityId + CITY_SEP + rowIndex;
-        return comm.zadd(IP_CITY, startIpNum, city);
+        return comm.zadd(Z_IP_CITY, startIpNum, CITY(cityId, rowIndex));
     }
 
     public Mono<Boolean> importCitiesToRedisByRow(City city) {
         try {
             String field = String.valueOf(city.getLocId());
             String json = mapper.writeValueAsString(city);
-            return comm.hset(CITY_HASH, field, json);
+            return comm.hset(H_CITY, field, json);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -159,11 +158,11 @@ public class Chapter05 extends BaseChapter {
 
     public Mono<City> findCityByIp(String ip) {
         int ipScore = ipToScore(ip);
-        return comm.zrevrangebyscore(IP_CITY, Range.create(ipScore, 0), Limit.create(0, 1))
+        return comm.zrevrangebyscore(Z_IP_CITY, Range.create(ipScore, 0), Limit.create(0, 1))
             .single()
             .flatMap(cityId -> {
                 String id = cityId.split("_")[0];
-                return comm.hget(CITY_HASH, id);
+                return comm.hget(H_CITY, id);
             })
             .map(json -> mapper.convertValue(json, City.class));
     }
@@ -171,7 +170,7 @@ public class Chapter05 extends BaseChapter {
     private final AtomicBoolean isUnderMaintenance = new AtomicBoolean(false);
 
     public void updateMaintenanceState() {
-        comm.get(IS_UNDER_MAINTENANCE)
+        comm.get(s_IS_UNDER_MAINTENANCE)
             .doOnNext(s -> isUnderMaintenance.set(Boolean.parseBoolean(s)))
             .repeat()
             .delayElements(Duration.ofSeconds(1))

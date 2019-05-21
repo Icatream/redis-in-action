@@ -2,13 +2,16 @@ package lettuce.chapter;
 
 import io.lettuce.core.ZStoreArgs;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
+import lettuce.key.Key01;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static lettuce.key.ArticleKey.USER_PREFIX;
-import static lettuce.key.C02Key.*;
+import static lettuce.key.Key02.*;
 
 /**
  * @author YaoXunYu
@@ -23,85 +26,75 @@ public class Chapter02 extends BaseChapter {
     }
 
     public Mono<String> checkToken(String token) {
-        return comm.hget(LOGIN, token);
+        return comm.hget(H_LOGIN, token);
     }
 
     public Mono<Long> updateToken(String token, long userId, long now) {
-        return comm.hset(LOGIN, token, USER_PREFIX + userId)
-            .then(comm.zadd(RECENT, now, token));
+        return comm.hset(H_LOGIN, token, Key01.v_USER(userId))
+            .then(comm.zadd(Z_RECENT, now, token));
     }
 
     public Mono<Long> updateToken(String token, long userId, long now, long itemId) {
-        String viewedToken = VIEWED + token;
+        String viewedToken = VIEWED.apply(token);
         return updateToken(token, userId, now)
-            .then(comm.zadd(viewedToken, now, ITEM + itemId))
+            .then(comm.zadd(viewedToken, now, v_ITEM(itemId)))
             .then(comm.zremrangebyrank(viewedToken, 0, -26));
     }
 
-    public void cleanSession() {
-        comm.zcard(RECENT)
-            .filter(l -> l > LIMIT)
-            .map(size -> Integer.min(size.intValue() - LIMIT, 100) - 1)
-            .flatMap(endIndex -> comm.zrange(RECENT, 0, endIndex)
-                .collectList())
-            .flatMap(tokenList -> {
-                String[] tokens = tokenList.toArray(new String[0]);
-                String[] sessionKeys = tokenList.stream()
-                    .map(token -> VIEWED + token)
-                    .toArray(String[]::new);
-                return comm.del(sessionKeys)
-                    .then(comm.hdel(LOGIN, tokens))
-                    .then(comm.zrem(RECENT, tokens));
-            })
-            .defaultIfEmpty(0L)
-            .repeat()
-            .delayElements(Duration.ofSeconds(1))
+    public void cleanSessions() {
+        cleanSession(tokenList -> tokenList.stream()
+            .map(VIEWED)
+            .toArray(String[]::new))
             .subscribe();
     }
 
     public Mono<Boolean> addToCart(String session, long itemId, int count) {
         if (count <= 0) {
-            return comm.hdel(CART + session, ITEM + itemId)
+            return comm.hdel(H_CART(session), v_ITEM(itemId))
                 .thenReturn(true);
         } else {
-            return comm.hset(CART + session, ITEM + itemId, String.valueOf(count));
+            return comm.hset(H_CART(session), v_ITEM(itemId), String.valueOf(count));
         }
     }
 
     public void cleanFullSessions() {
-        comm.zcard(RECENT)
-            .filter(l -> l > LIMIT)
-            .map(size -> Integer.min(size.intValue() - LIMIT, 100) - 1)
-            .flatMap(endIndex -> comm.zrange(RECENT, 0, endIndex)
-                .collectList())
-            .flatMap(tokenList -> {
-                String[] tokens = tokenList.toArray(new String[0]);
-                String[] sessionKeys = tokenList.stream()
-                    .flatMap(token -> Stream.of(VIEWED + token, CART + token))
-                    .toArray(String[]::new);
-                return comm.del(sessionKeys)
-                    .then(comm.hdel(LOGIN, tokens))
-                    .then(comm.zrem(RECENT, tokens));
-            })
-            .defaultIfEmpty(0L)
-            .repeat()
-            .delayElements(Duration.ofSeconds(1))
+        cleanSession(tokenList -> tokenList.stream()
+            .flatMap(token -> Stream.of(VIEWED.apply(token), H_CART(token)))
+            .toArray(String[]::new))
             .subscribe();
     }
 
+    private Flux<Long> cleanSession(Function<List<String>, String[]> f) {
+        return comm.zcard(Z_RECENT)
+            .filter(l -> l > LIMIT)
+            .map(size -> Integer.min(size.intValue() - LIMIT, 100) - 1)
+            .flatMap(endIndex -> comm.zrange(Z_RECENT, 0, endIndex)
+                .collectList())
+            .flatMap(tokenList -> {
+                String[] tokens = tokenList.toArray(new String[0]);
+                String[] sessionKeys = f.apply(tokenList);
+                return comm.del(sessionKeys)
+                    .then(comm.hdel(H_LOGIN, tokens))
+                    .then(comm.zrem(Z_RECENT, tokens));
+            })
+            .defaultIfEmpty(0L)
+            .repeat()
+            .delayElements(Duration.ofSeconds(1));
+    }
+
     public Mono<Double> updateToken2(String token, long userId, long now, long itemId) {
-        String viewedToken = VIEWED + token;
-        String item = ITEM + itemId;
+        String viewedToken = VIEWED.apply(token);
+        String item = v_ITEM(itemId);
         return updateToken(token, userId, now)
             .then(comm.zadd(viewedToken, now, item))
             .then(comm.zremrangebyrank(viewedToken, 0, -26))
-            .then(comm.zincrby(VIEWED, -1, item));
+            .then(comm.zincrby(Z_VIEWED, -1, item));
     }
 
     public void rescaleViewed() {
-        comm.zremrangebyrank(VIEWED, 0, -20001)
-            .flatMap(l -> comm.zinterstore(VIEWED, ZStoreArgs.Builder
-                .weights(0.5), VIEWED))
+        comm.zremrangebyrank(Z_VIEWED, 0, -20001)
+            .flatMap(l -> comm.zinterstore(Z_VIEWED, ZStoreArgs.Builder
+                .weights(0.5), Z_VIEWED))
             .repeat()
             .delayElements(Duration.ofMillis(5))
             .subscribe();

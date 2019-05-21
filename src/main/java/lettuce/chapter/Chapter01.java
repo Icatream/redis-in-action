@@ -23,7 +23,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 
-import static lettuce.key.ArticleKey.*;
+import static lettuce.key.Key01.*;
 
 /**
  * @author YaoXunYu
@@ -45,13 +45,13 @@ public class Chapter01 extends BaseChapter {
     public Mono<Long> articleVote(long articleId, long userId) {
         long cutOff = LocalDateTime.now()
             .minusWeeks(1).atZone(ZoneOffset.systemDefault()).toEpochSecond();
-        String a = ARTICLE_PREFIX + articleId;
-        return comm.zscore(TIME_Z_SET, a)
+        String a = v_ARTICLE(articleId);
+        return comm.zscore(ZS_TIME, a)
             .filter(d -> d >= cutOff)
-            .then(comm.sadd(VOTED_PREFIX + articleId, USER_PREFIX + userId)
+            .then(comm.sadd(S_VOTED(articleId), v_USER(userId))
                 .filter(i -> i == 1)
-                .then(comm.zincrby(SCORE_Z_SET, VOTE_SCORE, a)
-                    .then(comm.hincrby(a, PROP_VOTES, 1))));
+                .then(comm.zincrby(ZS_SCORE, VOTE_SCORE, a)
+                    .then(comm.hincrby(a, f_VOTES, 1))));
     }
 
     /**
@@ -62,24 +62,24 @@ public class Chapter01 extends BaseChapter {
      * 添加时间
      */
     public Mono<Long> postArticle(Article article) {
-        return comm.incr(ARTICLE_PREFIX)
+        return comm.incr(ARTICLE)
             .flatMap(id -> {
                 article.setId(id);
                 long now = Instant.now().getEpochSecond();
                 article.setTime(now);
-                String voted = VOTED_PREFIX + id;
-                String a = ARTICLE_PREFIX + id;
-                return comm.sadd(voted, USER_PREFIX + article.getPosterId())
+                String voted = S_VOTED(id);
+                String a = v_ARTICLE(id);
+                return comm.sadd(voted, v_USER(article.getPosterId()))
                     .then(comm.expire(voted, Duration.ofDays(7).getSeconds()))
                     .then(putArticle(article))
-                    .then(comm.zadd(SCORE_Z_SET, now + VOTE_SCORE, a))
-                    .then(comm.zadd(TIME_Z_SET, now, a))
+                    .then(comm.zadd(ZS_SCORE, now + VOTE_SCORE, a))
+                    .then(comm.zadd(ZS_TIME, now, a))
                     .thenReturn(id);
             });
     }
 
     public Flux<Article> getArticles(int page) {
-        return getArticles(page, SCORE_Z_SET);
+        return getArticles(page, ZS_SCORE);
     }
 
     public Flux<Article> getArticles(int page, String order) {
@@ -91,19 +91,19 @@ public class Chapter01 extends BaseChapter {
     }
 
     public Flux<Long> changeGroup(long articleId, List<Long> addGroupIds, List<Long> removeGroupIds) {
-        String a = ARTICLE_PREFIX + articleId;
+        String a = v_ARTICLE(articleId);
         return Flux.fromIterable(addGroupIds)
-            .flatMap(groupId -> comm.sadd(GROUP_PREFIX + groupId, a))
+            .flatMap(groupId -> comm.sadd(S_GROUP(groupId), a))
             .concatWith(Flux.fromIterable(removeGroupIds)
-                .flatMap(groupId -> comm.srem(GROUP_PREFIX + groupId, a)));
+                .flatMap(groupId -> comm.srem(S_GROUP(groupId), a)));
     }
 
     public Flux<Article> getGroupArticles(long groupId, int page) {
-        return getGroupArticles(groupId, page, SCORE_Z_SET);
+        return getGroupArticles(groupId, page, ZS_SCORE);
     }
 
     public Flux<Article> getGroupArticles(long groupId, int page, String order) {
-        String group = GROUP_PREFIX + groupId;
+        String group = S_GROUP(groupId);
         String key = order + group;
         return comm.exists(key)
             .filter(i -> i == 1)
@@ -114,7 +114,7 @@ public class Chapter01 extends BaseChapter {
     private Mono<String> putArticle(Article article) {
         Map<String, String> map = mapper.convertValue(article, new TypeReference<Map<String, String>>() {
         });
-        return comm.hmset(ARTICLE_PREFIX + article.getId(), map);
+        return comm.hmset(v_ARTICLE(article.getId()), map);
     }
 
     private static class EntryToArticle implements Collector<Map.Entry<String, String>, Article, Article> {

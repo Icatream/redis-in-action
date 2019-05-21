@@ -46,7 +46,7 @@ public class Supports {
      * change {@code String} into {@code Stream<String>}, split by '\n',
      * store the half-line at the {@code T2} in {@code Tuple2}
      */
-    public static BiFunction<Tuple2<Stream<String>, String>, String, Tuple2<Stream<String>, String>> accumulator = (tuple, str) -> {
+    public static final BiFunction<Tuple2<Stream<String>, String>, String, Tuple2<Stream<String>, String>> accumulator = (tuple, str) -> {
         String s = tuple.getT2() + str;
         int index = s.lastIndexOf("\n") + 1;
         if (index == 0) {

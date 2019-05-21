@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.lettuce.core.*;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
 import lettuce.Supports;
+import lettuce.key.Key01;
+import lettuce.key.Key02;
+import lettuce.key.Key06;
 import lettuce.pojo.City;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -31,9 +34,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static lettuce.key.ArticleKey.USER_PREFIX;
-import static lettuce.key.C02Key.RECENT;
-import static lettuce.key.C06Key.*;
+import static lettuce.key.Key06.*;
 
 /**
  * @author YaoXunYu
@@ -74,7 +75,7 @@ public class Chapter06 extends BaseChapter {
     }
 
     private String getUserContactKey(int userId) {
-        return RECENT + USER_PREFIX + userId;
+        return Key02.RECENT(Key01.v_USER(userId));
     }
 
     private static final String VALID_CHARACTERS = "`abcdefghijklmnopqrstuvwxyz{";
@@ -89,28 +90,26 @@ public class Chapter06 extends BaseChapter {
 
     @SuppressWarnings("unchecked")
     public Mono<List<String>> autoCompleteOnPrefix(int guildId, String prefix, int limit) {
-        String k = MEMBER + guildId;
-        String[] prefixRange = findPrefixRange(prefix);
         return autoCompleteOnPrefixSHA1.flatMap(sha1 ->
             comm.evalsha(sha1,
                 ScriptOutputType.MULTI,
-                new String[]{k, String.valueOf(limit)},
-                prefixRange)
+                new String[]{Z_MEMBER(guildId), String.valueOf(limit)},
+                findPrefixRange(prefix))
                 .single()
                 .map(o -> (List<String>) o));
     }
 
     public Mono<Long> joinGuild(int guildId, String user) {
-        return comm.zadd(MEMBER + guildId, 0, user);
+        return comm.zadd(Z_MEMBER(guildId), 0, user);
     }
 
     public Mono<Long> leaveGuild(int guildId, String user) {
-        return comm.zrem(MEMBER + guildId, user);
+        return comm.zrem(Z_MEMBER(guildId), user);
     }
 
     public void processSoldEmailQueue() {
         Flux.interval(Duration.ofSeconds(5))
-            .flatMap(i -> comm.lpop(EMAIL_QUEUE))
+            .flatMap(i -> comm.lpop(L_EMAIL_QUEUE))
             .flatMap(this::fakeProcessEmail)
             .subscribe();
     }
@@ -212,7 +211,7 @@ public class Chapter06 extends BaseChapter {
                     LocalDateTime.now().plusSeconds(delay).atZone(ZoneOffset.systemDefault()).toEpochSecond(),
                     json);
             } else {
-                mono = comm.rpush(QUEUE + callback.getQueue(), json);
+                mono = comm.rpush(L_QUEUE(callback.queue), json);
             }
             return mono.thenReturn(uuid.toString());
         } catch (JsonProcessingException e) {
@@ -248,16 +247,16 @@ public class Chapter06 extends BaseChapter {
                 }
                 String json = scoreValue.getValue();
                 Callback c = mapper.convertValue(json, Callback.class);
-                String lockName = LOCK + c.id;
+                String lockKey = s_LOCK(c.id);
                 String lockId = UUID.randomUUID().toString();
-                return acquireLockWithTimeout(lockName, lockId, 60)
+                return acquireLockWithTimeout(lockKey, lockId, 60)
                     .flatMap(b -> comm.zrem(DELAYED, json)
                         .filter(l -> l == 1)
-                        .flatMap(l -> comm.rpush(QUEUE + c.getQueue(), json))
-                        .flatMap(l -> releaseLock(lockName, lockId))
+                        .flatMap(l -> comm.rpush(L_QUEUE(c.queue), json))
+                        .flatMap(l -> releaseLock(lockKey, lockId))
                         .doOnNext(release -> {
                             if (!release) {
-                                System.out.println("Release lock fail: LockName<" + lockName + "> LockId<" + lockId + ">");
+                                System.out.println("Release lock fail: LockKey<" + lockKey + "> LockId<" + lockId + ">");
                             }
                         }));
             })
@@ -269,28 +268,30 @@ public class Chapter06 extends BaseChapter {
      * SEEN + recipients: <value>chatId</value>, <score>chat-message-id</score>
      */
     public Mono<Long> createChat(List<String> recipients) {
-        return comm.incr(CHAT_ID)
+        return comm.incr(i_CHAT_ID)
             .flatMap(chatId -> createChat(recipients, chatId));
     }
 
-    public Mono<Long> createChat(List<String> recipients, Long chatId) {
-        return comm.zadd(CHAT + chatId,
+    public Mono<Long> createChat(List<String> recipients, long chatId) {
+        String c = String.valueOf(chatId);
+        return comm.zadd(Z_CHAT(c),
             recipients.stream()
                 .map(r -> ScoredValue.just(0, r))
                 .toArray((IntFunction<ScoredValue<String>[]>) ScoredValue[]::new))
             .thenMany(Flux.fromIterable(recipients)
-                .map(r -> SEEN + r)
-                .flatMap(k -> comm.zadd(k, 0, chatId)))
+                .map(Key06::Z_SEEN)
+                .flatMap(k -> comm.zadd(k, 0, c)))
             .then(Mono.just(chatId));
     }
 
     //将消息推入message zset, 存在顺序问题, 乱序会导致读消息时丢失. 改用lua
-    public Mono<Long> sendMessage(Long chatId, Message message) {
+    public Mono<Long> sendMessage(long chatId, Message message) {
         try {
+            String c = String.valueOf(chatId);
             String msg = mapper.writeValueAsString(message);
             return sendMessageSHA1.flatMap(sha1 -> comm.evalsha(sha1,
                 ScriptOutputType.INTEGER,
-                new String[]{IDS + chatId, MSG + chatId},
+                new String[]{IDS + c, Z_MSG(c)},
                 msg)
                 .single()
                 .cast(Long.class));
@@ -345,45 +346,48 @@ public class Chapter06 extends BaseChapter {
      * @return chatId: List< Msg & mId >
      */
     public Flux<Tuple2<String, List<ScoredValue<String>>>> fetchPendingMessage(Integer recipient) {
-        return comm.zrangeWithScores(SEEN + recipient, 0, -1)
+        String r = String.valueOf(recipient);
+        return comm.zrangeWithScores(Z_SEEN(r), 0, -1)
             .flatMap(scoredValue -> {
                 String chatId = scoredValue.getValue();
                 double mid = scoredValue.getScore();
                 //redis comm已排序
-                return comm.zrangebyscoreWithScores(MSG + chatId, Range.<Double>unbounded().gt(mid))
+                return comm.zrangebyscoreWithScores(Z_MSG(chatId), Range.<Double>unbounded().gt(mid))
                     .collectList()
                     //.collectSortedList(Comparator.comparingDouble(ScoredValue::getScore))
                     .flatMap(list -> {
                         //TODO 检查最大 or 最小
                         double lastMId = list.get(list.size() - 1).getScore();
                         //修改 chat:... 中 recipient 的 mid 为最大 mid
-                        return comm.zadd(CHAT + chatId, lastMId, recipient)
+                        return comm.zadd(Z_CHAT(chatId), lastMId, r)
                             //清理 chat:... 中 mid<lastMId
-                            .then(comm.zremrangebyscore(MSG + chatId, Range.<Double>unbounded().lt(lastMId)))
+                            .then(comm.zremrangebyscore(Z_MSG(chatId), Range.<Double>unbounded().lt(lastMId)))
                             .thenReturn(Tuples.of(chatId, list));
                     });
             });
     }
 
-    public Mono<Long> joinChat(Integer chatId, Integer userId) {
-        return comm.get(IDS + chatId)
+    public Mono<Long> joinChat(long chatId, long userId) {
+        String c = String.valueOf(chatId);
+        String u = String.valueOf(userId);
+        return comm.get(IDS + c)
             .flatMap(messageId -> {
-                Integer mid = Integer.valueOf(messageId);
-                return comm.zadd(CHAT + chatId, mid, userId)
-                    .then(comm.zadd(SEEN + userId, mid, chatId));
+                double mid = Double.parseDouble(messageId);
+                return comm.zadd(Z_CHAT(c), mid, u)
+                    .then(comm.zadd(Z_SEEN(u), mid, c));
             });
     }
 
-    public Mono<Long> leaveChat(Integer chatId, Integer userId) {
-        String c = chatId.toString();
-        String u = userId.toString();
-        String chat = CHAT + c;
+    public Mono<Long> leaveChat(long chatId, long userId) {
+        String c = String.valueOf(chatId);
+        String u = String.valueOf(userId);
+        String chat = Z_CHAT(c);
         return comm.zrem(chat, u)
-            .then(comm.zrem(SEEN + u, c))
+            .then(comm.zrem(Z_SEEN(u), c))
             .then(comm.zcard(chat)
                 .defaultIfEmpty(0L)
                 .flatMap(size -> {
-                    String msg = MSG + c;
+                    String msg = Z_MSG(c);
                     if (size == 0) {
                         return comm.del(msg, IDS + c);
                     } else {
@@ -417,7 +421,7 @@ public class Chapter06 extends BaseChapter {
                 .stream()
                 .map(entry -> ScoredValue.just(entry.getValue(), entry.getKey()))
                 .toArray((IntFunction<ScoredValue<String>[]>) ScoredValue[]::new))
-            .flatMap(array -> comm.zadd(DAILY_COUNTRY + day, array))
+            .flatMap(array -> comm.zadd(Z_DAILY_COUNTRY(day), array))
             .doOnSuccess(l -> aggregates.remove(day));
     }
 
@@ -505,12 +509,11 @@ public class Chapter06 extends BaseChapter {
                                   Function<String, Mono<String>> callback,
                                   Mono<Void> ending) {
         getLogFileFromRedis(recipient)
-            .flatMap(
-                flux -> flux.flatMap(
-                    key -> readLines.apply(key, comm)
-                        .flatMap(callback)
-                        .then(ending)
-                        .then(comm.incr(key + PROCESS_FINISH_SUFFIX))))
+            .flatMap(flux ->
+                flux.flatMap(key -> readLines.apply(key, comm)
+                    .flatMap(callback)
+                    .then(ending)
+                    .then(comm.incr(key + PROCESS_FINISH_SUFFIX))))
             .subscribe();
     }
 

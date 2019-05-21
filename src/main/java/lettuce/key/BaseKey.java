@@ -6,5 +6,6 @@ package lettuce.key;
  */
 public interface BaseKey {
     String SEPARATOR = ":";
+    String OTHER_SEPARATOR = "_";
     String IDS = "ids" + SEPARATOR;
 }
