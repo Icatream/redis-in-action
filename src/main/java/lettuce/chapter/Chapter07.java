@@ -2,6 +2,7 @@ package lettuce.chapter;
 
 import com.google.common.collect.Sets;
 import io.lettuce.core.SortArgs;
+import io.lettuce.core.ZStoreArgs;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
 import lettuce.key.Key07;
 import reactor.core.publisher.Flux;
@@ -175,9 +176,9 @@ public class Chapter07 extends BaseChapter {
             });
     }
 
-    public Flux<String> searchAndSort(String query, SortArgs sortArgs, long timeout) {
+    public Mono<SortResult> searchAndSort(String query, SortArgs sortArgs, long timeout) {
         return parseAndSearch(query, timeout)
-            .flatMapMany(id -> comm.sort(id, sortArgs));
+            .flatMap(id -> getSortResult(id, sortArgs));
     }
 
     public Mono<SortResult> searchAndSort(String query, SortArgs sortArgs, long timeout, String idx) {
@@ -185,15 +186,19 @@ public class Chapter07 extends BaseChapter {
             .filter(b -> b)
             .map(b -> idx)
             .switchIfEmpty(parseAndSearch(query, timeout))
-            .flatMap(id -> Mono.zip(comm.scard(id),
-                comm.sort(id, sortArgs).collectList())
-                .map(tuple -> {
-                    SortResult r = new SortResult();
-                    r.id = id;
-                    r.size = tuple.getT1();
-                    r.values = tuple.getT2();
-                    return r;
-                }));
+            .flatMap(id -> getSortResult(id, sortArgs));
+    }
+
+    private Mono<SortResult> getSortResult(String id, SortArgs sortArgs) {
+        return Mono.zip(comm.scard(id),
+            comm.sort(id, sortArgs).collectList())
+            .map(tuple -> {
+                SortResult r = new SortResult();
+                r.id = id;
+                r.size = tuple.getT1();
+                r.values = tuple.getT2();
+                return r;
+            });
     }
 
     private static class SortResult {
@@ -214,4 +219,30 @@ public class Chapter07 extends BaseChapter {
         }
     }
 
+    /**
+     * default ZStoreArgs is sum
+     */
+    public Mono<String> zintersect(String[] keys) {
+        return collectAndExpire(id -> comm.zinterstore(id, keys));
+    }
+
+    public Mono<String> zintersect(String[] keys, ZStoreArgs args, long timeout) {
+        return collectAndExpire(id -> comm.zinterstore(id, args, keys), timeout);
+    }
+
+    /**
+     * default ZStoreArgs is sum
+     */
+    public Mono<String> zunion(String[] keys) {
+        return collectAndExpire(id -> comm.zunionstore(id, keys));
+    }
+
+    public Mono<String> zunion(String[] keys, ZStoreArgs args, long timeout) {
+        return collectAndExpire(id -> comm.zunionstore(id, args, keys), timeout);
+    }
+
+    public Mono searchAndZSort(String query, SortArgs sortArgs, long timeout) {
+        /*return parseAndSearch(query, timeout)
+            .flatMap(id ->)*/
+    }
 }
