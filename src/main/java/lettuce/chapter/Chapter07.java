@@ -403,13 +403,14 @@ public class Chapter07 extends BaseChapter {
                 .collectList()
                 .filter(list -> list.size() > 0)
                 .flatMap(list -> {
-                    String matchedKey = S_MATCHED(targetId.toString());
+                    String matchedKey = S_MATCHED(targetId);
                     return comm.sadd(matchedKey, list.toArray(new String[0]))
                         .then(comm.expire(matchedKey, 900));
                 }))
             .then(comm.zincrby(adViews, 1, "")
-                .filter(l -> (l % 100) == 0)
-                .flatMap())
+                    .filter(l -> (l % 100) == 0)
+                //.flatMap()
+            )
             .then();
     }
 
@@ -417,7 +418,28 @@ public class Chapter07 extends BaseChapter {
      * 广告每次被点击,都会增加该广告的匹配单词计数,如果一个广告匹配单词较多,会有较多单词因此受益.
      * incr value 改为 1/count(words)
      */
-    public Mono recordClick(String adId, Long targetId, boolean act) {
-        
+    public Mono<Void> recordClick(String adId, Long targetId, boolean act) {
+        String matchKey = S_MATCHED(targetId);
+        return comm.hget(H_TYPE, adId)
+            .map(Ecpm::valueOf)
+            .flatMap(type -> {
+                Mono<Boolean> m = Mono.just(true);
+                if (type.equals(Ecpm.CPA)) {
+                    m = comm.expire(matchKey, 900);
+                    if (act) {
+                        return m.then(comm.incr(TYPE_ACTIONS(type.name())))
+                            .thenReturn(Z_ACTIONS(adId));
+                    }
+                }
+                return m.then(comm.incr(TYPE_CLICKS(type.name())))
+                    .thenReturn(Z_CLICKS(adId));
+            })
+            .flatMapMany(clickKey -> comm.smembers(matchKey)
+                .concatWithValues("")
+                .flatMap(word -> comm.zincrby(clickKey, 1, word)))
+            //
+            .then();
     }
+
+    
 }

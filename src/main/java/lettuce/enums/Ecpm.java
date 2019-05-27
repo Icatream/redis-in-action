@@ -5,7 +5,9 @@ package lettuce.enums;
  * created on 05/23/19
  */
 public enum Ecpm {
-    CPM, CPC, CPA;
+    CPM,    //cost per mille views
+    CPC,    //cost per click
+    CPA;    //cost per action
 
     public double val(double views, double avg, double value) {
         switch (this) {

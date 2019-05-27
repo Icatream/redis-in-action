@@ -19,6 +19,8 @@ public interface Key07 extends BaseKey {
     String MATCHED = TERMS + "matched" + SEPARATOR;
     String ADS_SERVED = "ads" + SEPARATOR + "served" + SEPARATOR;
     String VIEWS = "views" + SEPARATOR;
+    String CLICKS = "clicks" + SEPARATOR;
+    String ACTIONS = "actions" + SEPARATOR;
 
     static String S_IDX(String k) {
         return IDX + k;
@@ -40,8 +42,8 @@ public interface Key07 extends BaseKey {
         return REQ + k;
     }
 
-    static String S_MATCHED(String k) {
-        return MATCHED + k;
+    static String S_MATCHED(Long id) {
+        return MATCHED + id;
     }
 
     static String Z_VIEWS(String k) {
@@ -50,5 +52,21 @@ public interface Key07 extends BaseKey {
 
     static String TYPE_VIEWS(String k) {
         return H_TYPE + k + SEPARATOR + VIEWS;
+    }
+
+    static String Z_CLICKS(String k) {
+        return CLICKS + k;
+    }
+
+    static String Z_ACTIONS(String k) {
+        return ACTIONS + k;
+    }
+
+    static String TYPE_CLICKS(String k) {
+        return H_TYPE + k + SEPARATOR + CLICKS;
+    }
+
+    static String TYPE_ACTIONS(String k) {
+        return H_TYPE + k + SEPARATOR + ACTIONS;
     }
 }
