@@ -362,7 +362,7 @@ public class Chapter07 extends BaseChapter {
                 .singleOrEmpty()
                 .zipWith(comm.incr(ADS_SERVED))
                 .flatMap(tuple -> recordTargetingResult(tuple.getT1(), tuple.getT2(), words)
-                    .thenReturn(tuple)));
+                    .then(Mono.just(tuple))));
     }
 
     /**
@@ -391,7 +391,7 @@ public class Chapter07 extends BaseChapter {
             .defaultIfEmpty(baseEcpm);
     }
 
-    public Mono<Void> recordTargetingResult(String adId, Long targetId, Set<String> words) {
+    public Flux<Long> recordTargetingResult(String adId, Long targetId, Set<String> words) {
         String adViews = Z_VIEWS(adId);
         return comm.hget(H_TYPE, adId)
             .map(Key07::TYPE_VIEWS)
@@ -402,16 +402,14 @@ public class Chapter07 extends BaseChapter {
                     .thenReturn(word))
                 .collectList()
                 .filter(list -> list.size() > 0)
-                .flatMap(list -> {
+                .flatMap(matched -> {
                     String matchedKey = S_MATCHED(targetId);
-                    return comm.sadd(matchedKey, list.toArray(new String[0]))
+                    return comm.sadd(matchedKey, matched.toArray(new String[0]))
                         .then(comm.expire(matchedKey, 900));
                 }))
-            .then(comm.zincrby(adViews, 1, "")
-                    .filter(l -> (l % 100) == 0)
-                //.flatMap()
-            )
-            .then();
+            .thenMany(comm.zincrby(adViews, 1, "")
+                .filter(l -> (l % 100) == 0)
+                .flatMapMany(l -> updateCpms(adId)));
     }
 
     /**
