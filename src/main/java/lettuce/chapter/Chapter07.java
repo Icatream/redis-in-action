@@ -491,4 +491,39 @@ public class Chapter07 extends BaseChapter {
                     });
             });
     }
+
+    /*
+     * 7.4
+     */
+
+    public Mono<Long> addJob(String jobId, String[] requiredSkills) {
+        return comm.sadd(S_JOB(jobId), requiredSkills);
+    }
+
+    public Flux<String> isQualified(String jobId, String[] candidateSkills) {
+        String temp = UUID.randomUUID().toString();
+        return comm.sadd(temp, candidateSkills)
+            .then(comm.expire(temp, 5))
+            .thenMany(comm.sdiff(S_JOB(jobId), temp));
+    }
+
+    /**
+     * @param skills size > 0
+     */
+    public Flux<Long> indexJob(String jobId, Set<String> skills) {
+        return Flux.fromIterable(skills)
+            .map(Key07::S_IDX_SKILL)
+            .flatMap(k -> comm.sadd(k, jobId))
+            .concatWith(comm.zadd(Z_IDX_JOB_REQ, skills.size(), jobId));
+    }
+
+    /**
+     * 技能熟练度: 修改求职者技能分值
+     * 技能经验: 将求职者技能开始时间作为分值??
+     */
+    public Flux<String> findJob(Stream<String> candidateSkills) {
+        return zunion(candidateSkills.map(Key07::Z_SKILL).toArray(String[]::new))
+            .flatMap(jobScores -> zintersect(new String[]{jobScores, Z_JOB_REQ}, ZStoreArgs.Builder.weights(-1, 1)))
+            .flatMapMany(k -> comm.zrangebyscore(k, 0, 0));
+    }
 }

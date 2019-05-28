@@ -21,6 +21,11 @@ public interface Key07 extends BaseKey {
     String VIEWS = "views" + SEPARATOR;
     String CLICKS = "clicks" + SEPARATOR;
     String ACTIONS = "actions" + SEPARATOR;
+    String JOB = "job" + SEPARATOR;
+    String Z_JOB_REQ = JOB + REQ;
+    String SKILL = "skill" + SEPARATOR;
+    String IDX_SKILL = IDX + SKILL;
+    String Z_IDX_JOB_REQ = IDX + Z_JOB_REQ;
 
     static String S_IDX(String k) {
         return IDX + k;
@@ -68,5 +73,17 @@ public interface Key07 extends BaseKey {
 
     static String TYPE_ACTIONS(String k) {
         return H_TYPE + k + SEPARATOR + ACTIONS;
+    }
+
+    static String Z_SKILL(String k) {
+        return SKILL + k;
+    }
+
+    static String S_JOB(String k) {
+        return JOB + k;
+    }
+
+    static String S_IDX_SKILL(String k) {
+        return IDX_SKILL + k;
     }
 }
