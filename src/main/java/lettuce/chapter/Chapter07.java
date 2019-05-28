@@ -482,7 +482,7 @@ public class Chapter07 extends BaseChapter {
                                 //zscore改成zrange,本地处理再写入,降低通信次数
                                 .flatMap(word -> comm.zscore(clickKey, word)
                                     .defaultIfEmpty(0d)
-                                    .filter(clicks -> clicks > 0)
+                                    .filter(clicks -> clicks >= 1)
                                     .flatMap(clicks -> comm.zscore(viewKey, word)
                                         .defaultIfEmpty(1d)
                                         .map(views -> type.val(views, clicks, baseValue))
