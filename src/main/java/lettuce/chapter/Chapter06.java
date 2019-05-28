@@ -219,21 +219,27 @@ public class Chapter06 extends BaseChapter {
         }
     }
 
-    public Mono<Boolean> acquireLockWithTimeout(String lockName, String lockId, long expireSeconds) {
-        return comm.setnx(lockName, lockId)
-            .filter(b -> b)
-            .flatMap(b -> comm.expire(lockName, expireSeconds));
+    public static Mono<String> acquireLockWithTimeout(RedisReactiveCommands<String, String> c,
+                                                      String lockName) {
+        return acquireLockWithTimeout(c, lockName, 60);
     }
 
-    public Mono<Boolean> releaseLock(String lockName, String id) {
-        return comm.get(lockName)
-            .flatMap(lockId -> {
-                if (lockId.equals(id)) {
-                    return comm.del(lockName)
-                        .thenReturn(true);
-                }
-                return Mono.just(false);
-            });
+    public static Mono<String> acquireLockWithTimeout(RedisReactiveCommands<String, String> c,
+                                                      String lockName, long expireSeconds) {
+        String lockId = UUID.randomUUID().toString();
+        return c.setnx(lockName, lockId)
+            .filter(b -> b)
+            .flatMap(b -> c.expire(lockName, expireSeconds))
+            .map(b -> lockId);
+    }
+
+    public static Mono<Boolean> releaseLock(RedisReactiveCommands<String, String> c,
+                                            String lockName, String id) {
+        return c.get(lockName)
+            .filter(lockId -> lockId.equals(id))
+            .flatMap(lockId -> c.del(lockName)
+                .thenReturn(true))
+            .defaultIfEmpty(false);
     }
 
     public void pollQueue() {
@@ -248,12 +254,11 @@ public class Chapter06 extends BaseChapter {
                 String json = scoreValue.getValue();
                 Callback c = mapper.convertValue(json, Callback.class);
                 String lockKey = s_LOCK(c.id);
-                String lockId = UUID.randomUUID().toString();
-                return acquireLockWithTimeout(lockKey, lockId, 60)
-                    .flatMap(b -> comm.zrem(DELAYED, json)
+                return acquireLockWithTimeout(comm, lockKey)
+                    .flatMap(lockId -> comm.zrem(DELAYED, json)
                         .filter(l -> l == 1)
                         .flatMap(l -> comm.rpush(L_QUEUE(c.queue), json))
-                        .flatMap(l -> releaseLock(lockKey, lockId))
+                        .flatMap(l -> releaseLock(comm, lockKey, lockId))
                         .doOnNext(release -> {
                             if (!release) {
                                 System.out.println("Release lock fail: LockKey<" + lockKey + "> LockId<" + lockId + ">");
