@@ -416,7 +416,7 @@ public class Chapter07 extends BaseChapter {
      * 广告每次被点击,都会增加该广告的匹配单词计数,如果一个广告匹配单词较多,会有较多单词因此受益.
      * incr value 改为 1/count(words)
      */
-    public Mono<Void> recordClick(String adId, Long targetId, boolean act) {
+    public Flux<Long> recordClick(String adId, Long targetId, boolean act) {
         String matchKey = S_MATCHED(targetId);
         return comm.hget(H_TYPE, adId)
             .flatMap(type -> {
@@ -434,8 +434,7 @@ public class Chapter07 extends BaseChapter {
             .flatMapMany(clickKey -> comm.smembers(matchKey)
                 .concatWithValues("")
                 .flatMap(word -> comm.zincrby(clickKey, 1, word)))
-            //
-            .then();
+            .thenMany(updateCpms(adId));
     }
 
     public Flux<Long> updateCpms(String adId) {
