@@ -19,4 +19,8 @@ public enum Ecpm {
                 return value;
         }
     }
+
+    public boolean nameEqual(String name) {
+        return this.name().equals(name);
+    }
 }

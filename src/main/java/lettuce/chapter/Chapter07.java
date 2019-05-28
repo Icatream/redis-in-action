@@ -318,12 +318,12 @@ public class Chapter07 extends BaseChapter {
      */
 
     // clicks/views 点击通过率
-    public double cpcToECpm(long views, long clicks, double cpc) {
+    public double cpcToEcpm(long views, long clicks, double cpc) {
         return 1000 * cpc * clicks / views;
     }
 
     // actions/views 动作执行概率
-    public double cpaToECpm(long views, long actions, double cpa) {
+    public double cpaToEcpm(long views, long actions, double cpa) {
         return 1000 * cpa * actions / views;
     }
 
@@ -421,17 +421,16 @@ public class Chapter07 extends BaseChapter {
     public Mono<Void> recordClick(String adId, Long targetId, boolean act) {
         String matchKey = S_MATCHED(targetId);
         return comm.hget(H_TYPE, adId)
-            .map(Ecpm::valueOf)
             .flatMap(type -> {
                 Mono<Boolean> m = Mono.just(true);
-                if (type.equals(Ecpm.CPA)) {
+                if (Ecpm.CPA.nameEqual(type)) {
                     m = comm.expire(matchKey, 900);
                     if (act) {
-                        return m.then(comm.incr(TYPE_ACTIONS(type.name())))
+                        return m.then(comm.incr(TYPE_ACTIONS(type)))
                             .thenReturn(Z_ACTIONS(adId));
                     }
                 }
-                return m.then(comm.incr(TYPE_CLICKS(type.name())))
+                return m.then(comm.incr(TYPE_CLICKS(type)))
                     .thenReturn(Z_CLICKS(adId));
             })
             .flatMapMany(clickKey -> comm.smembers(matchKey)
@@ -441,5 +440,55 @@ public class Chapter07 extends BaseChapter {
             .then();
     }
 
-    
+    public Flux<Long> updateCpms(String adId) {
+        return comm.hget(H_TYPE, adId)
+            .map(Ecpm::valueOf)
+            .flatMapMany(type -> {
+                String typeKey;
+                String clickKey;
+                String tName = type.name();
+                if (Ecpm.CPA.equals(type)) {
+                    typeKey = TYPE_ACTIONS(tName);
+                    clickKey = Z_ACTIONS(adId);
+                } else {
+                    typeKey = TYPE_CLICKS(tName);
+                    clickKey = Z_CLICKS(adId);
+                }
+                return Mono.zip(comm.get(TYPE_VIEWS(tName))
+                        .map(Integer::valueOf)
+                        .defaultIfEmpty(1),
+                    comm.get(typeKey)
+                        .map(Integer::valueOf)
+                        .defaultIfEmpty(1))
+                    .doOnNext(tuple -> AVERAGE_PER_1K.put(type, 1000 * (double) tuple.getT2() / tuple.getT1()))
+                    .filter(tuple -> !Ecpm.CPM.equals(type))
+                    .flatMap(t -> comm.zscore(Z_AD_BASE_VALUE, adId))
+                    .flatMapMany(baseValue -> {
+                        String viewKey = Z_VIEWS(adId);
+                        return Mono.zip(comm.zscore(viewKey, "")
+                                .defaultIfEmpty(1d),
+                            comm.zscore(clickKey, "")
+                                .defaultIfEmpty(0d))
+                            .flatMap(tuple -> {
+                                if (tuple.getT2() < 1) {
+                                    return comm.zscore(Z_IDX_AD_VALUE, adId);
+                                } else {
+                                    double adEcpm = type.val(tuple.getT1(), tuple.getT2(), baseValue);
+                                    return comm.zadd(Z_IDX_AD_VALUE, adEcpm, adId)
+                                        .thenReturn(adEcpm);
+                                }
+                            })
+                            .flatMapMany(adEcpm -> comm.smembers(S_TERMS(adId))
+                                //zscore改成zrange,本地处理再写入,降低通信次数
+                                .flatMap(word -> comm.zscore(clickKey, word)
+                                    .defaultIfEmpty(0d)
+                                    .filter(clicks -> clicks > 0)
+                                    .flatMap(clicks -> comm.zscore(viewKey, word)
+                                        .defaultIfEmpty(1d)
+                                        .map(views -> type.val(views, clicks, baseValue))
+                                        .map(wordEcpm -> wordEcpm - adEcpm)
+                                        .flatMap(bonus -> comm.zadd(ZS_IDX(word), bonus, adId)))));
+                    });
+            });
+    }
 }
