@@ -121,7 +121,7 @@ public class Chapter06 extends BaseChapter {
 
     //there're nothing in callbackMap...
     private Map<String, Function<List<String>, Mono<Object>>> callbackMap = new HashMap<>();
-    private ObjectMapper mapper = new ObjectMapper();
+    private static final ObjectMapper mapper = new ObjectMapper();
 
     public void workerWatchQueue(String queue) {
         Flux.interval(Duration.ofSeconds(5))
@@ -199,21 +199,28 @@ public class Chapter06 extends BaseChapter {
         }
     }
 
-    public Mono<String> executeLater(Callback callback, long delay) {
+    public static Mono<String> executeLater(RedisReactiveCommands<String, String> c, Callback callback) {
+        return exeLater(callback, json -> c.rpush(L_QUEUE(callback.queue), json));
+    }
+
+    public static Mono<String> executeLater(RedisReactiveCommands<String, String> c, Callback callback, long delay) {
+        if (delay > 0) {
+            return exeLater(callback, json -> c.zadd(DELAYED,
+                ZAddArgs.Builder.nx(),
+                LocalDateTime.now().plusSeconds(delay).atZone(ZoneOffset.systemDefault()).toEpochSecond(),
+                json));
+        } else {
+            return executeLater(c, callback);
+        }
+    }
+
+    private static Mono<String> exeLater(Callback callback, Function<String, Mono<Long>> execute) {
         UUID uuid = UUID.randomUUID();
         callback.setId(uuid.toString());
         try {
             String json = mapper.writeValueAsString(callback);
-            Mono<Long> mono;
-            if (delay > 0) {
-                mono = comm.zadd(DELAYED,
-                    ZAddArgs.Builder.nx(),
-                    LocalDateTime.now().plusSeconds(delay).atZone(ZoneOffset.systemDefault()).toEpochSecond(),
-                    json);
-            } else {
-                mono = comm.rpush(L_QUEUE(callback.queue), json);
-            }
-            return mono.thenReturn(uuid.toString());
+            return execute.apply(json)
+                .thenReturn(uuid.toString());
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
