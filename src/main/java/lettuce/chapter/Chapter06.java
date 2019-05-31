@@ -10,7 +10,9 @@ import lettuce.key.Key02;
 import lettuce.key.Key06;
 import lettuce.pojo.City;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.WorkQueueProcessor;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
@@ -120,9 +122,15 @@ public class Chapter06 extends BaseChapter {
     }
 
     //there're nothing in callbackMap...
-    private Map<String, Function<List<String>, Mono<Object>>> callbackMap = new HashMap<>();
     private static final ObjectMapper mapper = new ObjectMapper();
 
+    @Deprecated
+    private Map<String, Function<List<String>, Mono<Object>>> callbackMap = new HashMap<>();
+
+    /**
+     * @see this#workerWatchQueue()
+     */
+    @Deprecated
     public void workerWatchQueue(String queue) {
         Flux.interval(Duration.ofSeconds(5))
             .flatMap(i -> comm.lpop(queue))
@@ -130,6 +138,7 @@ public class Chapter06 extends BaseChapter {
             .subscribe();
     }
 
+    @Deprecated
     public void workerWatchQueues(List<String> queue) {
         Flux.interval(Duration.ofSeconds(5))
             .flatMap(l -> {
@@ -144,6 +153,7 @@ public class Chapter06 extends BaseChapter {
             .subscribe();
     }
 
+    @Deprecated
     private Function<Flux<String>, Flux<Object>> callbackFlux = f -> f
         .map(json -> mapper.convertValue(json, Callback.class))
         .onErrorContinue(error -> true,
@@ -160,6 +170,7 @@ public class Chapter06 extends BaseChapter {
             return Mono.empty();
         });
 
+    @Deprecated
     public static class Callback {
         private String id;
         private String queue;
@@ -199,10 +210,15 @@ public class Chapter06 extends BaseChapter {
         }
     }
 
+    /**
+     * @see this#executeLater(Mono)
+     */
+    @Deprecated
     public static Mono<String> executeLater(RedisReactiveCommands<String, String> c, Callback callback) {
         return exeLater(callback, json -> c.rpush(L_QUEUE(callback.queue), json));
     }
 
+    @Deprecated
     public static Mono<String> executeLater(RedisReactiveCommands<String, String> c, Callback callback, long delay) {
         if (delay > 0) {
             return exeLater(callback, json -> c.zadd(DELAYED,
@@ -214,6 +230,7 @@ public class Chapter06 extends BaseChapter {
         }
     }
 
+    @Deprecated
     private static Mono<String> exeLater(Callback callback, Function<String, Mono<Long>> execute) {
         UUID uuid = UUID.randomUUID();
         callback.setId(uuid.toString());
@@ -224,6 +241,29 @@ public class Chapter06 extends BaseChapter {
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static WorkQueueProcessor<Mono<Void>> processor = WorkQueueProcessor.create();
+    private static FluxSink<Mono<Void>> sink = processor.sink();
+
+    static {
+        workerWatchQueue();
+    }
+
+    public static void workerWatchQueue() {
+        processor
+            .flatMap(m -> m.onErrorContinue((t, o) -> {
+                System.out.println("Error object: <" + o + ">");
+                t.printStackTrace();
+            }))
+            .subscribe();
+    }
+
+    /**
+     * use {@link WorkQueueProcessor}
+     */
+    public static void executeLater(Mono<Void> exe) {
+        sink.next(exe);
     }
 
     public static Mono<String> acquireLockWithTimeout(RedisReactiveCommands<String, String> c,

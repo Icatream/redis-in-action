@@ -130,12 +130,12 @@ public class Chapter08 extends BaseChapter {
 
     private static final long POSTS_PER_PASS = 1000;
 
-    public Mono<String> syndicateStatus(String userId, ScoredValue<String> post) {
+    public Mono<Long> syndicateStatus(String userId, ScoredValue<String> post) {
         return syndicateStatus(userId, post, 0);
     }
 
     @SuppressWarnings("unchecked")
-    public Mono<String> syndicateStatus(String userId, ScoredValue<String> post, long offset) {
+    public Mono<Long> syndicateStatus(String userId, ScoredValue<String> post, long offset) {
         String followers = Z_FOLLOWERS(userId);
         //正向range,新增关注者不会影响已关注用户的时间线获取,取关则会让部分用户时间线重刷,也不会对结果产生影响
         return comm.zrangebyscore(followers, Range.unbounded(), Limit.create(offset, POSTS_PER_PASS))
@@ -144,14 +144,8 @@ public class Chapter08 extends BaseChapter {
                 .then(comm.zremrangebyrank(fKey, 0, -HOME_TIMELINE_SIZE - 1)))
             .then(comm.zcard(followers)
                 .filter(size -> offset + POSTS_PER_PASS < size)
-                .flatMap(size -> {
-                    Chapter06.Callback c = new Chapter06.Callback();
-                    c.setQueue("default");
-                    c.setName("syndicateStatus");
-                    //TODO reflect
-                    //c.setArgs(Arrays.asList(userId, post, offset));
-                    return Chapter06.executeLater(comm, c);
-                }));
+                .doOnNext(size -> Chapter06.executeLater(syndicateStatus(userId, post, offset)
+                    .then())));
     }
 
     public Mono<Boolean> deleteStatus(String userId, String statusId) {
