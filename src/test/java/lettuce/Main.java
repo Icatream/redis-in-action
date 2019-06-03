@@ -28,9 +28,9 @@ public class Main {
             .doOnNext(System.out::println)
             .block();*/
 
-        c.getrange("gz",0,100)
-            .doOnNext(System.out::println)
-            .block();
+        c.getrange("gz", 0, 100)
+          .doOnNext(System.out::println)
+          .block();
     }
 
     private static void readLineTest(RedisReactiveCommands<String, String> commands) {
@@ -38,14 +38,14 @@ public class Main {
         long size = 5;
         AtomicLong l = new AtomicLong();
         Mono.fromSupplier(() -> l.getAndAccumulate(size, (pv, v) -> pv + v))
-            .flatMap(pos -> commands.getrange("k", pos, pos + size - 1))
-            .repeat()
-            .takeWhile(s -> !"".equals(s))
-            .doOnNext(s -> System.out.println("Get from redis: " + s))
-            .scan(Tuples.of(Stream.empty(), ""), Supports.accumulator)
-            .doOnNext(tuple -> System.out.println("Tuple(2): " + tuple.getT2()))
-            .flatMap(tuple -> Flux.fromStream(tuple.getT1()))
-            .doOnNext(s -> System.out.println("After: " + s))
-            .blockLast();
+          .flatMap(pos -> commands.getrange("k", pos, pos + size - 1))
+          .repeat()
+          .takeWhile(s -> !"".equals(s))
+          .doOnNext(s -> System.out.println("Get from redis: " + s))
+          .scan(Tuples.of(Stream.empty(), ""), Supports.accumulator)
+          .doOnNext(tuple -> System.out.println("Tuple(2): " + tuple.getT2()))
+          .flatMap(tuple -> Flux.fromStream(tuple.getT1()))
+          .doOnNext(s -> System.out.println("After: " + s))
+          .blockLast();
     }
 }

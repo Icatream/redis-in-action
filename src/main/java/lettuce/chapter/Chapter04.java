@@ -34,47 +34,47 @@ public class Chapter04 extends BaseChapter {
     //Warning: No error handler
     public Mono<Void> processLog(Path outerPath, Function<String, Mono<Void>> lineAnalyze) {
         return comm.get(s_FILE)
-            .zipWith(comm.get(s_OFFSET)
-                .map(Integer::valueOf))
-            .flatMap(tuple -> {
-                String currentFile = tuple.getT1();
-                int offset = tuple.getT2();
-                Path current = outerPath.resolve(currentFile);
-                return analyzeFile(current, offset, lineAnalyze)
-                    .then(Mono.fromSupplier(
-                        () -> {
-                            try {
-                                return Files.walk(outerPath, 1)
-                                    .filter(Files::isDirectory)
-                                    .filter(path -> !path.equals(outerPath))
-                                    .filter(path -> path.getFileName().toString().compareTo(currentFile) > 0);
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                        })
-                        .flatMapMany(Flux::fromStream)
-                        .flatMap(path -> analyzeFile(path, 0, lineAnalyze))
-                        .then());
-            });
+          .zipWith(comm.get(s_OFFSET)
+            .map(Integer::valueOf))
+          .flatMap(tuple -> {
+              String currentFile = tuple.getT1();
+              int offset = tuple.getT2();
+              Path current = outerPath.resolve(currentFile);
+              return analyzeFile(current, offset, lineAnalyze)
+                .then(Mono.fromSupplier(
+                  () -> {
+                      try {
+                          return Files.walk(outerPath, 1)
+                            .filter(Files::isDirectory)
+                            .filter(path -> !path.equals(outerPath))
+                            .filter(path -> path.getFileName().toString().compareTo(currentFile) > 0);
+                      } catch (IOException e) {
+                          throw new RuntimeException(e);
+                      }
+                  })
+                  .flatMapMany(Flux::fromStream)
+                  .flatMap(path -> analyzeFile(path, 0, lineAnalyze))
+                  .then());
+          });
     }
 
     private Mono<Integer> analyzeFile(Path file, int offset, Function<String, Mono<Void>> lineAnalyze) {
         AtomicInteger i = new AtomicInteger(offset);
         return Mono.fromSupplier(
-            () -> {
-                try {
-                    return Files.readAllLines(file);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            })
-            .flatMapMany(Flux::fromIterable)
-            .skip(offset)
-            .window(1000)
-            .flatMap(flux -> flux.doOnNext(line -> i.incrementAndGet())
-                .flatMap(lineAnalyze)
-                .then(updateProgress(file, i.get())))
-            .then(Mono.just(i.get()));
+          () -> {
+              try {
+                  return Files.readAllLines(file);
+              } catch (IOException e) {
+                  throw new RuntimeException(e);
+              }
+          })
+          .flatMapMany(Flux::fromIterable)
+          .skip(offset)
+          .window(1000)
+          .flatMap(flux -> flux.doOnNext(line -> i.incrementAndGet())
+            .flatMap(lineAnalyze)
+            .then(updateProgress(file, i.get())))
+          .then(Mono.just(i.get()));
     }
 
     private Mono<String> updateProgress(Path file, int offset) {
@@ -89,29 +89,29 @@ public class Chapter04 extends BaseChapter {
         String inventory = S_INVENTORY(sellerId);
 
         StepVerifier.create(comm.sadd(inventory, itemIdStr))
-            .expectNext(1L)
-            .verifyComplete();
+          .expectNext(1L)
+          .verifyComplete();
 
         String item = itemId + "." + sellerId;
         //long end = LocalDateTime.now().plusSeconds(5).atZone(ZoneOffset.systemDefault()).toEpochSecond();
         listItemSHA1.flatMap(sha1 -> comm.evalsha(sha1,
-            ScriptOutputType.BOOLEAN,
-            new String[]{inventory, Z_MARKET, item},
-            itemIdStr, String.valueOf(price))
-            .single())
-            .doOnNext(r -> {
-                System.out.println(r.getClass());
-                System.out.println(r);
-            })
-            .block();
+          ScriptOutputType.BOOLEAN,
+          new String[]{inventory, Z_MARKET, item},
+          itemIdStr, String.valueOf(price))
+          .single())
+          .doOnNext(r -> {
+              System.out.println(r.getClass());
+              System.out.println(r);
+          })
+          .block();
 
         StepVerifier.create(comm.sismember(inventory, itemIdStr))
-            .expectNext(false)
-            .verifyComplete();
+          .expectNext(false)
+          .verifyComplete();
 
         StepVerifier.create(comm.zrange(Z_MARKET, 0, -1))
-            .expectNext(item)
-            .verifyComplete();
+          .expectNext(item)
+          .verifyComplete();
 
         del(Z_MARKET);
     }
@@ -129,40 +129,40 @@ public class Chapter04 extends BaseChapter {
         String item = itemId + "." + sellerId;
 
         StepVerifier.create(comm.zadd(Z_MARKET, lPrice, item))
-            .expectNext(1L)
-            .verifyComplete();
+          .expectNext(1L)
+          .verifyComplete();
 
         //设置buyer拥有的金额
         StepVerifier.create(comm.hset(buyer, f_FUNDS, String.valueOf(fundsOfBuyer)))
-            .expectNext(true)
-            .verifyComplete();
+          .expectNext(true)
+          .verifyComplete();
 
         StepVerifier.create(purchaseItemSHA1.flatMap(sha1 -> comm.evalsha(sha1,
-            ScriptOutputType.BOOLEAN,
-            new String[]{Z_MARKET, buyer, seller, bInventory, f_FUNDS},
-            item,
-            String.valueOf(lPrice),
-            String.valueOf(itemId))
-            .single()))
-            .expectNextMatches(o -> {
-                System.out.println(o);
-                return true;
-            })
-            .verifyComplete();
+          ScriptOutputType.BOOLEAN,
+          new String[]{Z_MARKET, buyer, seller, bInventory, f_FUNDS},
+          item,
+          String.valueOf(lPrice),
+          String.valueOf(itemId))
+          .single()))
+          .expectNextMatches(o -> {
+              System.out.println(o);
+              return true;
+          })
+          .verifyComplete();
 
         StepVerifier.create(comm.zrange(Z_MARKET, 0, -1))
-            .verifyComplete();
+          .verifyComplete();
 
         StepVerifier.create(comm.hget(buyer, f_FUNDS))
-            .expectNext(String.valueOf(fundsOfBuyer - lPrice))
-            .verifyComplete();
+          .expectNext(String.valueOf(fundsOfBuyer - lPrice))
+          .verifyComplete();
 
         StepVerifier.create(comm.smembers(bInventory))
-            .expectNext(String.valueOf(itemId))
-            .verifyComplete();
+          .expectNext(String.valueOf(itemId))
+          .verifyComplete();
 
         StepVerifier.create(comm.del(buyer, seller, bInventory))
-            .expectNext(3L)
-            .verifyComplete();
+          .expectNext(3L)
+          .verifyComplete();
     }
 }

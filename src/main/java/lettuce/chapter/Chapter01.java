@@ -44,14 +44,14 @@ public class Chapter01 extends BaseChapter {
      */
     public Mono<Long> articleVote(long articleId, long userId) {
         long cutOff = LocalDateTime.now()
-            .minusWeeks(1).atZone(ZoneOffset.systemDefault()).toEpochSecond();
+          .minusWeeks(1).atZone(ZoneOffset.systemDefault()).toEpochSecond();
         String a = v_ARTICLE(articleId);
         return comm.zscore(ZS_TIME, a)
-            .filter(d -> d >= cutOff)
-            .then(comm.sadd(S_VOTED(articleId), v_USER(userId))
-                .filter(i -> i == 1)
-                .then(comm.zincrby(ZS_SCORE, VOTE_SCORE, a)
-                    .then(comm.hincrby(a, f_VOTES, 1))));
+          .filter(d -> d >= cutOff)
+          .then(comm.sadd(S_VOTED(articleId), v_USER(userId))
+            .filter(i -> i == 1)
+            .then(comm.zincrby(ZS_SCORE, VOTE_SCORE, a)
+              .then(comm.hincrby(a, f_VOTES, 1))));
     }
 
     /**
@@ -63,19 +63,19 @@ public class Chapter01 extends BaseChapter {
      */
     public Mono<Long> postArticle(Article article) {
         return comm.incr(ARTICLE)
-            .flatMap(id -> {
-                article.setId(id);
-                long now = Instant.now().getEpochSecond();
-                article.setTime(now);
-                String voted = S_VOTED(id);
-                String a = v_ARTICLE(id);
-                return comm.sadd(voted, v_USER(article.getPosterId()))
-                    .then(comm.expire(voted, Duration.ofDays(7).getSeconds()))
-                    .then(putArticle(article))
-                    .then(comm.zadd(ZS_SCORE, now + VOTE_SCORE, a))
-                    .then(comm.zadd(ZS_TIME, now, a))
-                    .thenReturn(id);
-            });
+          .flatMap(id -> {
+              article.setId(id);
+              long now = Instant.now().getEpochSecond();
+              article.setTime(now);
+              String voted = S_VOTED(id);
+              String a = v_ARTICLE(id);
+              return comm.sadd(voted, v_USER(article.getPosterId()))
+                .then(comm.expire(voted, Duration.ofDays(7).getSeconds()))
+                .then(putArticle(article))
+                .then(comm.zadd(ZS_SCORE, now + VOTE_SCORE, a))
+                .then(comm.zadd(ZS_TIME, now, a))
+                .thenReturn(id);
+          });
     }
 
     public Flux<Article> getArticles(int page) {
@@ -86,16 +86,16 @@ public class Chapter01 extends BaseChapter {
         long start = (page - 1) * ARTICLE_PER_PAGE;
         long end = start + ARTICLE_PER_PAGE - 1;
         return comm.zrevrange(order, start, end)
-            .flatMap(comm::hgetall)
-            .map(map -> mapper.convertValue(map, Article.class));
+          .flatMap(comm::hgetall)
+          .map(map -> mapper.convertValue(map, Article.class));
     }
 
     public Flux<Long> changeGroup(long articleId, List<Long> addGroupIds, List<Long> removeGroupIds) {
         String a = v_ARTICLE(articleId);
         return Flux.fromIterable(addGroupIds)
-            .flatMap(groupId -> comm.sadd(S_GROUP(groupId), a))
-            .concatWith(Flux.fromIterable(removeGroupIds)
-                .flatMap(groupId -> comm.srem(S_GROUP(groupId), a)));
+          .flatMap(groupId -> comm.sadd(S_GROUP(groupId), a))
+          .concatWith(Flux.fromIterable(removeGroupIds)
+            .flatMap(groupId -> comm.srem(S_GROUP(groupId), a)));
     }
 
     public Flux<Article> getGroupArticles(long groupId, int page) {
@@ -106,9 +106,9 @@ public class Chapter01 extends BaseChapter {
         String group = S_GROUP(groupId);
         String key = order + group;
         return comm.exists(key)
-            .filter(i -> i == 1)
-            .switchIfEmpty(comm.zinterstore(key, ZStoreArgs.Builder.max(), group, order))
-            .thenMany(getArticles(page, key));
+          .filter(i -> i == 1)
+          .switchIfEmpty(comm.zinterstore(key, ZStoreArgs.Builder.max(), group, order))
+          .thenMany(getArticles(page, key));
     }
 
     private Mono<String> putArticle(Article article) {
@@ -163,8 +163,8 @@ public class Chapter01 extends BaseChapter {
         @Override
         public Set<Characteristics> characteristics() {
             return EnumSet.of(Characteristics.UNORDERED,
-                Characteristics.IDENTITY_FINISH,
-                Characteristics.CONCURRENT);
+              Characteristics.IDENTITY_FINISH,
+              Characteristics.CONCURRENT);
         }
     }
 }

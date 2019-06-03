@@ -50,34 +50,34 @@ public class Chapter05 extends BaseChapter {
         String destination = Key02.RECENT_SEVERITY(name, severity);
         String msg = LocalDateTime.now() + " " + message;
         return comm.lpush(destination, msg)
-            .then(comm.ltrim(destination, 0, 99));
+          .then(comm.ltrim(destination, 0, 99));
     }
 
     public Mono<Boolean> logCommon(String name, String message, Severity severity, long timeout) {
         String lDes = COMMON_SEVERITY(name, severity);
         String mDes = Key02.RECENT_SEVERITY(name, severity);
         long hour = LocalDateTime.now()
-            .withNano(0).withSecond(0).withMinute(0)
-            .atZone(ZoneOffset.systemDefault()).toEpochSecond();
+          .withNano(0).withSecond(0).withMinute(0)
+          .atZone(ZoneOffset.systemDefault()).toEpochSecond();
         return logCommonSHA1.flatMap(sha1 -> comm.evalsha(sha1,
-            ScriptOutputType.BOOLEAN,
-            new String[]{lDes, mDes},
-            String.valueOf(hour),
-            message)
-            .single()
-            .cast(Boolean.class));
+          ScriptOutputType.BOOLEAN,
+          new String[]{lDes, mDes},
+          String.valueOf(hour),
+          message)
+          .single()
+          .cast(Boolean.class));
     }
 
     public Mono<Boolean> updateCounter(String name, int count) {
         long now = Instant.now().getEpochSecond();
         return timeSpecificCounterSHA1.flatMap(sha1 -> comm.evalsha(sha1,
-            ScriptOutputType.BOOLEAN,
-            new String[]{KNOWN, COUNT},
-            String.valueOf(now),
-            name,
-            String.valueOf(count))
-            .single()
-            .cast(Boolean.class));
+          ScriptOutputType.BOOLEAN,
+          new String[]{KNOWN, COUNT},
+          String.valueOf(now),
+          name,
+          String.valueOf(count))
+          .single()
+          .cast(Boolean.class));
     }
 
     public Mono<Map<String, String>> getCounter(String name, int precision) {
@@ -89,48 +89,48 @@ public class Chapter05 extends BaseChapter {
         String sampleCount = "100";
         AtomicInteger passes = new AtomicInteger();
         return cleanCounterSHA1.flatMapMany(sha1 -> Mono.fromSupplier(() -> Tuples.of(passes.getAndIncrement(),
-            Instant.now().getEpochSecond()))
-            .flatMap(tuple -> comm.evalsha(sha1,
-                ScriptOutputType.BOOLEAN,
-                new String[]{KNOWN, COUNT},
-                String.valueOf(tuple.getT1()),
-                String.valueOf(tuple.getT2()),
-                sampleCount)
-                .single()
-                .cast(Boolean.class))
-            .repeat())
-            .delayElements(Duration.ofSeconds(60));
+          Instant.now().getEpochSecond()))
+          .flatMap(tuple -> comm.evalsha(sha1,
+            ScriptOutputType.BOOLEAN,
+            new String[]{KNOWN, COUNT},
+            String.valueOf(tuple.getT1()),
+            String.valueOf(tuple.getT2()),
+            sampleCount)
+            .single()
+            .cast(Boolean.class))
+          .repeat())
+          .delayElements(Duration.ofSeconds(60));
     }
 
     @SuppressWarnings("unchecked")
     public Mono<List<String>> updateStats(String context, String type, int value) {
         String des = STATS + context + SEPARATOR + type;
         long hour = LocalDateTime.now()
-            .withNano(0).withSecond(0).withMinute(0)
-            .atZone(ZoneOffset.systemDefault()).toEpochSecond();
+          .withNano(0).withSecond(0).withMinute(0)
+          .atZone(ZoneOffset.systemDefault()).toEpochSecond();
         return updateStatsSHA1.flatMap(sha1 -> comm.evalsha(sha1,
-            ScriptOutputType.MULTI,
-            new String[]{des},
-            String.valueOf(hour),
-            String.valueOf(value))
-            .single())
-            .map(o -> (List<String>) o);
+          ScriptOutputType.MULTI,
+          new String[]{des},
+          String.valueOf(hour),
+          String.valueOf(value))
+          .single())
+          .map(o -> (List<String>) o);
     }
 
     public Mono<Map<String, ScoredValue<String>>> getStats(String context, String type) {
         String key = STATS + context + SEPARATOR + type;
         return comm.zrangeWithScores(key, 0, -1)
-            .collectMap(Value::getValue)
-            .map(map -> {
-                double sum = map.get("sum").getScore();
-                double count = map.get("count").getScore();
-                String ave = "average";
-                map.put(ave, ScoredValue.just(sum / count, ave));
-                double sumsq = map.get("sumsq").getScore();
-                String stddev = "stddev";
-                map.put(stddev, ScoredValue.just(sumsq - Math.pow(sum, 2) / count, stddev));
-                return map;
-            });
+          .collectMap(Value::getValue)
+          .map(map -> {
+              double sum = map.get("sum").getScore();
+              double count = map.get("count").getScore();
+              String ave = "average";
+              map.put(ave, ScoredValue.just(sum / count, ave));
+              double sumsq = map.get("sumsq").getScore();
+              String stddev = "stddev";
+              map.put(stddev, ScoredValue.just(sumsq - Math.pow(sum, 2) / count, stddev));
+              return map;
+          });
     }
 
     /**
@@ -138,8 +138,8 @@ public class Chapter05 extends BaseChapter {
      */
     public static int ipToScore(String ip) {
         return Stream.of(ip.split("\\."))
-            .mapToInt(Integer::parseInt)
-            .reduce(0, (left, right) -> left * 256 + right);
+          .mapToInt(Integer::parseInt)
+          .reduce(0, (left, right) -> left * 256 + right);
     }
 
     public Mono<Long> importIpsToRedisByRow(int rowIndex, int cityId, int startIpNum) {
@@ -159,22 +159,22 @@ public class Chapter05 extends BaseChapter {
     public Mono<City> findCityByIp(String ip) {
         int ipScore = ipToScore(ip);
         return comm.zrevrangebyscore(Z_IP_CITY, Range.create(ipScore, 0), Limit.create(0, 1))
-            .single()
-            .flatMap(cityId -> {
-                String id = cityId.split("_")[0];
-                return comm.hget(H_CITY, id);
-            })
-            .map(json -> mapper.convertValue(json, City.class));
+          .single()
+          .flatMap(cityId -> {
+              String id = cityId.split("_")[0];
+              return comm.hget(H_CITY, id);
+          })
+          .map(json -> mapper.convertValue(json, City.class));
     }
 
     private final AtomicBoolean isUnderMaintenance = new AtomicBoolean(false);
 
     public void updateMaintenanceState() {
         comm.get(s_IS_UNDER_MAINTENANCE)
-            .doOnNext(s -> isUnderMaintenance.set(Boolean.parseBoolean(s)))
-            .repeat()
-            .delayElements(Duration.ofSeconds(1))
-            .subscribe();
+          .doOnNext(s -> isUnderMaintenance.set(Boolean.parseBoolean(s)))
+          .repeat()
+          .delayElements(Duration.ofSeconds(1))
+          .subscribe();
     }
 
 }

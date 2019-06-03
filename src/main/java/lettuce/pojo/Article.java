@@ -65,13 +65,13 @@ public class Article {
     @Override
     public String toString() {
         return "Article{" +
-            "id=" + id +
-            ", title='" + title + '\'' +
-            ", link='" + link + '\'' +
-            ", posterId=" + posterId +
-            ", time=" + time +
-            ", votes=" + votes +
-            '}';
+          "id=" + id +
+          ", title='" + title + '\'' +
+          ", link='" + link + '\'' +
+          ", posterId=" + posterId +
+          ", time=" + time +
+          ", votes=" + votes +
+          '}';
     }
 
     @Override
@@ -80,11 +80,11 @@ public class Article {
         if (o == null || getClass() != o.getClass()) return false;
         Article article = (Article) o;
         return id == article.id &&
-            posterId == article.posterId &&
-            time == article.time &&
-            votes == article.votes &&
-            Objects.equals(title, article.title) &&
-            Objects.equals(link, article.link);
+          posterId == article.posterId &&
+          time == article.time &&
+          votes == article.votes &&
+          Objects.equals(title, article.title) &&
+          Objects.equals(link, article.link);
     }
 
     @Override

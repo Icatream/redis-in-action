@@ -60,11 +60,11 @@ public class Chapter06 extends BaseChapter {
 
     public Mono<Boolean> addUpdateContact(int userId, String contact) {
         return addUpdateContactSHA1.flatMap(sha1 -> comm.evalsha(sha1,
-            ScriptOutputType.BOOLEAN,
-            new String[]{getUserContactKey(userId)},
-            contact)
-            .single()
-            .cast(Boolean.class));
+          ScriptOutputType.BOOLEAN,
+          new String[]{getUserContactKey(userId)},
+          contact)
+          .single()
+          .cast(Boolean.class));
     }
 
     public Mono<Long> removeContact(int userId, String contact) {
@@ -73,7 +73,7 @@ public class Chapter06 extends BaseChapter {
 
     public Flux<String> fetchAutoCompleteList(int user, String prefix) {
         return comm.lrange(getUserContactKey(user), 0, -1)
-            .filter(contact -> contact.startsWith(prefix));
+          .filter(contact -> contact.startsWith(prefix));
     }
 
     private String getUserContactKey(int userId) {
@@ -93,12 +93,12 @@ public class Chapter06 extends BaseChapter {
     @SuppressWarnings("unchecked")
     public Mono<List<String>> autoCompleteOnPrefix(int guildId, String prefix, int limit) {
         return autoCompleteOnPrefixSHA1.flatMap(sha1 ->
-            comm.evalsha(sha1,
-                ScriptOutputType.MULTI,
-                new String[]{Z_MEMBER(guildId), String.valueOf(limit)},
-                findPrefixRange(prefix))
-                .single()
-                .map(o -> (List<String>) o));
+          comm.evalsha(sha1,
+            ScriptOutputType.MULTI,
+            new String[]{Z_MEMBER(guildId), String.valueOf(limit)},
+            findPrefixRange(prefix))
+            .single()
+            .map(o -> (List<String>) o));
     }
 
     public Mono<Long> joinGuild(int guildId, String user) {
@@ -111,9 +111,9 @@ public class Chapter06 extends BaseChapter {
 
     public void processSoldEmailQueue() {
         Flux.interval(Duration.ofSeconds(5))
-            .flatMap(i -> comm.lpop(L_EMAIL_QUEUE))
-            .flatMap(this::fakeProcessEmail)
-            .subscribe();
+          .flatMap(i -> comm.lpop(L_EMAIL_QUEUE))
+          .flatMap(this::fakeProcessEmail)
+          .subscribe();
     }
 
     private Mono<String> fakeProcessEmail(String email) {
@@ -133,42 +133,42 @@ public class Chapter06 extends BaseChapter {
     @Deprecated
     public void workerWatchQueue(String queue) {
         Flux.interval(Duration.ofSeconds(5))
-            .flatMap(i -> comm.lpop(queue))
-            .transform(callbackFlux)
-            .subscribe();
+          .flatMap(i -> comm.lpop(queue))
+          .transform(callbackFlux)
+          .subscribe();
     }
 
     @Deprecated
     public void workerWatchQueues(List<String> queue) {
         Flux.interval(Duration.ofSeconds(5))
-            .flatMap(l -> {
-                AtomicInteger index = new AtomicInteger();
-                return Mono.fromSupplier(index::get)
-                    .flatMap(i -> comm.lpop(queue.get(i)))
-                    .repeatWhenEmpty(queue.size() - 1,
-                        f -> f.doOnNext(i -> index.incrementAndGet()))
-                    .onErrorResume(throwable -> Mono.empty());
-            })
-            .transform(callbackFlux)
-            .subscribe();
+          .flatMap(l -> {
+              AtomicInteger index = new AtomicInteger();
+              return Mono.fromSupplier(index::get)
+                .flatMap(i -> comm.lpop(queue.get(i)))
+                .repeatWhenEmpty(queue.size() - 1,
+                  f -> f.doOnNext(i -> index.incrementAndGet()))
+                .onErrorResume(throwable -> Mono.empty());
+          })
+          .transform(callbackFlux)
+          .subscribe();
     }
 
     @Deprecated
     private Function<Flux<String>, Flux<Object>> callbackFlux = f -> f
-        .map(json -> mapper.convertValue(json, Callback.class))
-        .onErrorContinue(error -> true,
-            (throwable, o) -> {
-                System.out.println(o);
-                throwable.printStackTrace();
-            })
-        .flatMap(callback -> {
-            Function<List<String>, Mono<Object>> callBack = callbackMap.get(callback.name);
-            if (callBack != null) {
-                return callBack.apply(callback.args);
-            }
-            System.out.println("Unknown callback: " + callback.name);
-            return Mono.empty();
-        });
+      .map(json -> mapper.convertValue(json, Callback.class))
+      .onErrorContinue(error -> true,
+        (throwable, o) -> {
+            System.out.println(o);
+            throwable.printStackTrace();
+        })
+      .flatMap(callback -> {
+          Function<List<String>, Mono<Object>> callBack = callbackMap.get(callback.name);
+          if (callBack != null) {
+              return callBack.apply(callback.args);
+          }
+          System.out.println("Unknown callback: " + callback.name);
+          return Mono.empty();
+      });
 
     @Deprecated
     public static class Callback {
@@ -222,9 +222,9 @@ public class Chapter06 extends BaseChapter {
     public static Mono<String> executeLater(RedisReactiveCommands<String, String> c, Callback callback, long delay) {
         if (delay > 0) {
             return exeLater(callback, json -> c.zadd(DELAYED,
-                ZAddArgs.Builder.nx(),
-                LocalDateTime.now().plusSeconds(delay).atZone(ZoneOffset.systemDefault()).toEpochSecond(),
-                json));
+              ZAddArgs.Builder.nx(),
+              LocalDateTime.now().plusSeconds(delay).atZone(ZoneOffset.systemDefault()).toEpochSecond(),
+              json));
         } else {
             return executeLater(c, callback);
         }
@@ -237,7 +237,7 @@ public class Chapter06 extends BaseChapter {
         try {
             String json = mapper.writeValueAsString(callback);
             return execute.apply(json)
-                .thenReturn(uuid.toString());
+              .thenReturn(uuid.toString());
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -252,11 +252,11 @@ public class Chapter06 extends BaseChapter {
 
     public static void workerWatchQueue() {
         processor
-            .flatMap(m -> m.onErrorContinue((t, o) -> {
-                System.out.println("Error object: <" + o + ">");
-                t.printStackTrace();
-            }))
-            .subscribe();
+          .flatMap(m -> m.onErrorContinue((t, o) -> {
+              System.out.println("Error object: <" + o + ">");
+              t.printStackTrace();
+          }))
+          .subscribe();
     }
 
     /**
@@ -275,44 +275,44 @@ public class Chapter06 extends BaseChapter {
                                                       String lockName, long expireSeconds) {
         String lockId = UUID.randomUUID().toString();
         return c.setnx(lockName, lockId)
-            .filter(b -> b)
-            .flatMap(b -> c.expire(lockName, expireSeconds))
-            .map(b -> lockId);
+          .filter(b -> b)
+          .flatMap(b -> c.expire(lockName, expireSeconds))
+          .map(b -> lockId);
     }
 
     public static Mono<Boolean> releaseLock(RedisReactiveCommands<String, String> c,
                                             String lockName, String id) {
         return c.get(lockName)
-            .filter(lockId -> lockId.equals(id))
-            .flatMap(lockId -> c.del(lockName)
-                .thenReturn(true))
-            .defaultIfEmpty(false);
+          .filter(lockId -> lockId.equals(id))
+          .flatMap(lockId -> c.del(lockName)
+            .thenReturn(true))
+          .defaultIfEmpty(false);
     }
 
     public void pollQueue() {
         Flux.interval(Duration.ofSeconds(5))
-            .flatMap(l -> comm.zrangeWithScores(DELAYED, 0, 0)
-                .single())
-            .flatMap(scoreValue -> {
-                long now = LocalDateTime.now().atZone(ZoneOffset.systemDefault()).toEpochSecond();
-                if (now < scoreValue.getScore()) {
-                    return Mono.empty();
-                }
-                String json = scoreValue.getValue();
-                Callback c = mapper.convertValue(json, Callback.class);
-                String lockKey = s_LOCK(c.id);
-                return acquireLockWithTimeout(comm, lockKey)
-                    .flatMap(lockId -> comm.zrem(DELAYED, json)
-                        .filter(l -> l == 1)
-                        .flatMap(l -> comm.rpush(L_QUEUE(c.queue), json))
-                        .flatMap(l -> releaseLock(comm, lockKey, lockId))
-                        .doOnNext(release -> {
-                            if (!release) {
-                                System.out.println("Release lock fail: LockKey<" + lockKey + "> LockId<" + lockId + ">");
-                            }
-                        }));
-            })
-            .subscribe();
+          .flatMap(l -> comm.zrangeWithScores(DELAYED, 0, 0)
+            .single())
+          .flatMap(scoreValue -> {
+              long now = LocalDateTime.now().atZone(ZoneOffset.systemDefault()).toEpochSecond();
+              if (now < scoreValue.getScore()) {
+                  return Mono.empty();
+              }
+              String json = scoreValue.getValue();
+              Callback c = mapper.convertValue(json, Callback.class);
+              String lockKey = s_LOCK(c.id);
+              return acquireLockWithTimeout(comm, lockKey)
+                .flatMap(lockId -> comm.zrem(DELAYED, json)
+                  .filter(l -> l == 1)
+                  .flatMap(l -> comm.rpush(L_QUEUE(c.queue), json))
+                  .flatMap(l -> releaseLock(comm, lockKey, lockId))
+                  .doOnNext(release -> {
+                      if (!release) {
+                          System.out.println("Release lock fail: LockKey<" + lockKey + "> LockId<" + lockId + ">");
+                      }
+                  }));
+          })
+          .subscribe();
     }
 
     /**
@@ -321,19 +321,19 @@ public class Chapter06 extends BaseChapter {
      */
     public Mono<Long> createChat(List<String> recipients) {
         return comm.incr(i_CHAT_ID)
-            .flatMap(chatId -> createChat(recipients, chatId));
+          .flatMap(chatId -> createChat(recipients, chatId));
     }
 
     public Mono<Long> createChat(List<String> recipients, long chatId) {
         String c = String.valueOf(chatId);
         return comm.zadd(Z_CHAT(c),
-            recipients.stream()
-                .map(r -> ScoredValue.just(0, r))
-                .toArray((IntFunction<ScoredValue<String>[]>) ScoredValue[]::new))
-            .thenMany(Flux.fromIterable(recipients)
-                .map(Key06::Z_SEEN)
-                .flatMap(k -> comm.zadd(k, 0, c)))
-            .then(Mono.just(chatId));
+          recipients.stream()
+            .map(r -> ScoredValue.just(0, r))
+            .toArray((IntFunction<ScoredValue<String>[]>) ScoredValue[]::new))
+          .thenMany(Flux.fromIterable(recipients)
+            .map(Key06::Z_SEEN)
+            .flatMap(k -> comm.zadd(k, 0, c)))
+          .then(Mono.just(chatId));
     }
 
     //将消息推入message zset, 存在顺序问题, 乱序会导致读消息时丢失. 改用lua
@@ -342,11 +342,11 @@ public class Chapter06 extends BaseChapter {
             String c = String.valueOf(chatId);
             String msg = mapper.writeValueAsString(message);
             return sendMessageSHA1.flatMap(sha1 -> comm.evalsha(sha1,
-                ScriptOutputType.INTEGER,
-                new String[]{IDS + c, Z_MSG(c)},
-                msg)
-                .single()
-                .cast(Long.class));
+              ScriptOutputType.INTEGER,
+              new String[]{IDS + c, Z_MSG(c)},
+              msg)
+              .single()
+              .cast(Long.class));
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -400,34 +400,34 @@ public class Chapter06 extends BaseChapter {
     public Flux<Tuple2<String, List<ScoredValue<String>>>> fetchPendingMessage(Integer recipient) {
         String r = String.valueOf(recipient);
         return comm.zrangeWithScores(Z_SEEN(r), 0, -1)
-            .flatMap(scoredValue -> {
-                String chatId = scoredValue.getValue();
-                double mid = scoredValue.getScore();
-                //redis comm已排序
-                return comm.zrangebyscoreWithScores(Z_MSG(chatId), Range.<Double>unbounded().gt(mid))
-                    .collectList()
-                    //.collectSortedList(Comparator.comparingDouble(ScoredValue::getScore))
-                    .flatMap(list -> {
-                        //TODO 检查最大 or 最小
-                        double lastMId = list.get(list.size() - 1).getScore();
-                        //修改 chat:... 中 recipient 的 mid 为最大 mid
-                        return comm.zadd(Z_CHAT(chatId), lastMId, r)
-                            //清理 chat:... 中 mid<lastMId
-                            .then(comm.zremrangebyscore(Z_MSG(chatId), Range.<Double>unbounded().lt(lastMId)))
-                            .thenReturn(Tuples.of(chatId, list));
-                    });
-            });
+          .flatMap(scoredValue -> {
+              String chatId = scoredValue.getValue();
+              double mid = scoredValue.getScore();
+              //redis comm已排序
+              return comm.zrangebyscoreWithScores(Z_MSG(chatId), Range.<Double>unbounded().gt(mid))
+                .collectList()
+                //.collectSortedList(Comparator.comparingDouble(ScoredValue::getScore))
+                .flatMap(list -> {
+                    //TODO 检查最大 or 最小
+                    double lastMId = list.get(list.size() - 1).getScore();
+                    //修改 chat:... 中 recipient 的 mid 为最大 mid
+                    return comm.zadd(Z_CHAT(chatId), lastMId, r)
+                      //清理 chat:... 中 mid<lastMId
+                      .then(comm.zremrangebyscore(Z_MSG(chatId), Range.<Double>unbounded().lt(lastMId)))
+                      .thenReturn(Tuples.of(chatId, list));
+                });
+          });
     }
 
     public Mono<Long> joinChat(long chatId, long userId) {
         String c = String.valueOf(chatId);
         String u = String.valueOf(userId);
         return comm.get(IDS + c)
-            .flatMap(messageId -> {
-                double mid = Double.parseDouble(messageId);
-                return comm.zadd(Z_CHAT(c), mid, u)
-                    .then(comm.zadd(Z_SEEN(u), mid, c));
-            });
+          .flatMap(messageId -> {
+              double mid = Double.parseDouble(messageId);
+              return comm.zadd(Z_CHAT(c), mid, u)
+                .then(comm.zadd(Z_SEEN(u), mid, c));
+          });
     }
 
     public Mono<Long> leaveChat(long chatId, long userId) {
@@ -435,19 +435,19 @@ public class Chapter06 extends BaseChapter {
         String u = String.valueOf(userId);
         String chat = Z_CHAT(c);
         return comm.zrem(chat, u)
-            .then(comm.zrem(Z_SEEN(u), c))
-            .then(comm.zcard(chat)
-                .defaultIfEmpty(0L)
-                .flatMap(size -> {
-                    String msg = Z_MSG(c);
-                    if (size == 0) {
-                        return comm.del(msg, IDS + c);
-                    } else {
-                        return comm.zrangeWithScores(chat, 0, 0)
-                            .single()
-                            .flatMap(sv -> comm.zremrangebyscore(msg, Range.<Double>unbounded().lt(sv.getScore())));
-                    }
-                }));
+          .then(comm.zrem(Z_SEEN(u), c))
+          .then(comm.zcard(chat)
+            .defaultIfEmpty(0L)
+            .flatMap(size -> {
+                String msg = Z_MSG(c);
+                if (size == 0) {
+                    return comm.del(msg, IDS + c);
+                } else {
+                    return comm.zrangeWithScores(chat, 0, 0)
+                      .single()
+                      .flatMap(sv -> comm.zremrangebyscore(msg, Range.<Double>unbounded().lt(sv.getScore())));
+                }
+            }));
     }
 
     //day:country:counter
@@ -455,12 +455,12 @@ public class Chapter06 extends BaseChapter {
 
     public Mono<String> dailyCountryAggregate(String ip, LocalDate day, Function<String, Mono<City>> findCityByIp) {
         return findCityByIp.apply(ip)
-            .map(City::getCountry)
-            .doOnNext(country -> {
-                aggregates.putIfAbsent(day, new ConcurrentHashMap<>());
-                aggregates.get(day)
-                    .merge(country, 1, (ov, v) -> ov + v);
-            });
+          .map(City::getCountry)
+          .doOnNext(country -> {
+              aggregates.putIfAbsent(day, new ConcurrentHashMap<>());
+              aggregates.get(day)
+                .merge(country, 1, (ov, v) -> ov + v);
+          });
     }
 
     /**
@@ -469,12 +469,12 @@ public class Chapter06 extends BaseChapter {
      */
     public Mono<Long> dailyCountryStorage(LocalDate day) {
         return Mono.justOrEmpty(aggregates.get(day))
-            .map(map -> map.entrySet()
-                .stream()
-                .map(entry -> ScoredValue.just(entry.getValue(), entry.getKey()))
-                .toArray((IntFunction<ScoredValue<String>[]>) ScoredValue[]::new))
-            .flatMap(array -> comm.zadd(Z_DAILY_COUNTRY(day), array))
-            .doOnSuccess(l -> aggregates.remove(day));
+          .map(map -> map.entrySet()
+            .stream()
+            .map(entry -> ScoredValue.just(entry.getValue(), entry.getKey()))
+            .toArray((IntFunction<ScoredValue<String>[]>) ScoredValue[]::new))
+          .flatMap(array -> comm.zadd(Z_DAILY_COUNTRY(day), array))
+          .doOnSuccess(l -> aggregates.remove(day));
     }
 
     /**
@@ -488,55 +488,55 @@ public class Chapter06 extends BaseChapter {
     public void copyLogsToRedis(Path path, Long channel, int processorCount, long limit) {
         final String source = "Source";
         List<String> members = IntStream.rangeClosed(1, processorCount)
-            .mapToObj(i -> "LogProcessor" + i)
-            .collect(Collectors.toList());
+          .mapToObj(i -> "LogProcessor" + i)
+          .collect(Collectors.toList());
         //add sender
         members.add(source);
         createChat(members, channel)
-            .flatMapMany(cid -> Flux.using(() -> Files.walk(path, 1), Flux::fromStream, BaseStream::close)
-                .filter(p -> Files.isRegularFile(p))
-                .filter(p -> !p.equals(path))
-                .flatMap(log -> Mono.fromCallable(() -> Files.size(log)).cache()
-                    .filter(size -> cache.bytesInRedis.get() + size < limit)
-                    //clean redis, until can put log file
-                    .repeatWhenEmpty(f -> f
-                        .delayElements(Duration.ofSeconds(1))
-                        .flatMap(l -> cleanLogInRedis(cid, processorCount)
-                            .thenReturn(l)))
-                    //put log file by lines
-                    .flatMap(size -> {
-                        String logPath = log.getFileName().toString();
-                        return Flux.using(() -> Files.lines(log),
-                            Flux::fromStream,
-                            BaseStream::close)
-                            .map(line -> line + "\n")
-                            .flatMap(line -> comm.append(cid + logPath, line))
-                            //send log ready msg
-                            .then(sendMessage(cid, new Message(source, logPath, ZonedDateTime.now().toEpochSecond()))
-                                .doOnNext(l -> cache.offer(Tuples.of(log, size))));
-                    }))
-                .then(sendMessage(cid, new Message(source, PROCESS_FINISH_SUFFIX, ZonedDateTime.now().toEpochSecond())))
-                //clean logs
-                .thenMany(Mono.fromSupplier(() -> cache.bytesInRedis.get())
-                    .repeat()
-                    .delayElements(Duration.ofSeconds(1))
-                    .takeWhile(size -> size > 0)
-                    .flatMap(size -> cleanLogInRedis(cid, processorCount))))
-            .subscribe();
+          .flatMapMany(cid -> Flux.using(() -> Files.walk(path, 1), Flux::fromStream, BaseStream::close)
+            .filter(p -> Files.isRegularFile(p))
+            .filter(p -> !p.equals(path))
+            .flatMap(log -> Mono.fromCallable(() -> Files.size(log)).cache()
+              .filter(size -> cache.bytesInRedis.get() + size < limit)
+              //clean redis, until can put log file
+              .repeatWhenEmpty(f -> f
+                .delayElements(Duration.ofSeconds(1))
+                .flatMap(l -> cleanLogInRedis(cid, processorCount)
+                  .thenReturn(l)))
+              //put log file by lines
+              .flatMap(size -> {
+                  String logPath = log.getFileName().toString();
+                  return Flux.using(() -> Files.lines(log),
+                    Flux::fromStream,
+                    BaseStream::close)
+                    .map(line -> line + "\n")
+                    .flatMap(line -> comm.append(cid + logPath, line))
+                    //send log ready msg
+                    .then(sendMessage(cid, new Message(source, logPath, ZonedDateTime.now().toEpochSecond()))
+                      .doOnNext(l -> cache.offer(Tuples.of(log, size))));
+              }))
+            .then(sendMessage(cid, new Message(source, PROCESS_FINISH_SUFFIX, ZonedDateTime.now().toEpochSecond())))
+            //clean logs
+            .thenMany(Mono.fromSupplier(() -> cache.bytesInRedis.get())
+              .repeat()
+              .delayElements(Duration.ofSeconds(1))
+              .takeWhile(size -> size > 0)
+              .flatMap(size -> cleanLogInRedis(cid, processorCount))))
+          .subscribe();
 
     }
 
     public Mono<Long> cleanLogInRedis(Long chatId, int processorCount) {
         return Mono.justOrEmpty(cache.waiting.peek())
-            .flatMap(tuple -> {
-                String log = chatId + SEPARATOR + tuple.getT1().getFileName();
-                String logProcessCount = log + PROCESS_FINISH_SUFFIX;
-                return comm.get(logProcessCount)
-                    .map(Integer::valueOf)
-                    .filter(i -> i == processorCount)
-                    .flatMap(i -> comm.del(log, logProcessCount))
-                    .doOnNext(l -> cache.remove(tuple));
-            });
+          .flatMap(tuple -> {
+              String log = chatId + SEPARATOR + tuple.getT1().getFileName();
+              String logProcessCount = log + PROCESS_FINISH_SUFFIX;
+              return comm.get(logProcessCount)
+                .map(Integer::valueOf)
+                .filter(i -> i == processorCount)
+                .flatMap(i -> comm.del(log, logProcessCount))
+                .doOnNext(l -> cache.remove(tuple));
+          });
     }
 
     private static class Cache {
@@ -561,43 +561,43 @@ public class Chapter06 extends BaseChapter {
                                   Function<String, Mono<String>> callback,
                                   Mono<Void> ending) {
         getLogFileFromRedis(recipient)
-            .flatMap(flux ->
-                flux.flatMap(key -> readLines.apply(key, comm)
-                    .flatMap(callback)
-                    .then(ending)
-                    .then(comm.incr(key + PROCESS_FINISH_SUFFIX))))
-            .subscribe();
+          .flatMap(flux ->
+            flux.flatMap(key -> readLines.apply(key, comm)
+              .flatMap(callback)
+              .then(ending)
+              .then(comm.incr(key + PROCESS_FINISH_SUFFIX))))
+          .subscribe();
     }
 
     public void processGZipLogs(Integer recipient,
                                 Function<String, Mono<String>> callback,
                                 Mono<Void> ending) {
         getLogFileFromRedis(recipient)
-            .flatMap(flux -> flux.flatMap(comm::get)
-                .flatMap(log -> Flux.fromArray(log.split("\n"))
-                    .flatMap(callback)
-                    .then(ending)))
-            .subscribe();
+          .flatMap(flux -> flux.flatMap(comm::get)
+            .flatMap(log -> Flux.fromArray(log.split("\n"))
+              .flatMap(callback)
+              .then(ending)))
+          .subscribe();
     }
 
     private Flux<Flux<String>> getLogFileFromRedis(Integer recipient) {
         return fetchPendingMessage(recipient)
-            .map(tuple -> Flux.fromIterable(tuple.getT2())
-                .map(ScoredValue::getValue)
-                .map(s -> mapper.convertValue(s, Message.class))
-                .filter(msg -> PROCESS_FINISH_SUFFIX.equals(msg.message))
-                .map(msg -> tuple.getT1() + msg.getMessage()));
+          .map(tuple -> Flux.fromIterable(tuple.getT2())
+            .map(ScoredValue::getValue)
+            .map(s -> mapper.convertValue(s, Message.class))
+            .filter(msg -> PROCESS_FINISH_SUFFIX.equals(msg.message))
+            .map(msg -> tuple.getT1() + msg.getMessage()));
     }
 
     private BiFunction<String, RedisReactiveCommands<String, String>, Flux<String>> readLines = (key, commands) -> {
         long blockSize = 2 ^ 17;
         AtomicLong pos = new AtomicLong();
         return Mono.fromSupplier(() -> pos.getAndAccumulate(blockSize, (pv, v) -> pv + v))
-            .flatMap(p -> commands.getrange(key, p, p + blockSize - 1))
-            .repeat()
-            .takeWhile(s -> !"".equals(s))
-            .scan(Tuples.of(Stream.empty(), ""), Supports.accumulator)
-            .flatMap(tuple -> Flux.fromStream(tuple.getT1()));
+          .flatMap(p -> commands.getrange(key, p, p + blockSize - 1))
+          .repeat()
+          .takeWhile(s -> !"".equals(s))
+          .scan(Tuples.of(Stream.empty(), ""), Supports.accumulator)
+          .flatMap(tuple -> Flux.fromStream(tuple.getT1()));
     };
 
 }

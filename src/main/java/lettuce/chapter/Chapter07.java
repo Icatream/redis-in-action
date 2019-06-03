@@ -1,6 +1,7 @@
 package lettuce.chapter;
 
 import com.google.common.collect.Sets;
+import io.lettuce.core.Range;
 import io.lettuce.core.SortArgs;
 import io.lettuce.core.ZStoreArgs;
 import io.lettuce.core.api.reactive.RedisReactiveCommands;
@@ -30,18 +31,18 @@ import static lettuce.key.Key07.*;
 public class Chapter07 extends BaseChapter {
 
     private final HashSet<String> STOP_WORDS = Sets.newHashSet("able", "about",
-        "across", "after", "all", "almost", "also", "am", "among", "an", "and", "any",
-        "are", "as", "at", "be", "because", "been", "but", "by", "can", "cannot",
-        "could", "dear", "did", "do", "does", "either", "else", "ever", "every",
-        "for", "from", "get", "got", "had", "has", "have", "he", "her", "hers",
-        "him", "his", "how", "however", "if", "in", "into", "is", "it", "its",
-        "just", "least", "let", "like", "likely", "may", "me", "might", "most",
-        "must", "my", "neither", "no", "nor", "not", "of", "off", "often", "on",
-        "only", "or", "other", "our", "own", "rather", "said", "say", "says", "she",
-        "should", "since", "so", "some", "than", "that", "the", "their", "them",
-        "then", "there", "these", "they", "this", "tis", "to", "too", "twas", "us",
-        "wants", "was", "we", "were", "what", "when", "where", "which", "while",
-        "who", "whom", "why", "will", "with", "would", "yet", "you", "your");
+      "across", "after", "all", "almost", "also", "am", "among", "an", "and", "any",
+      "are", "as", "at", "be", "because", "been", "but", "by", "can", "cannot",
+      "could", "dear", "did", "do", "does", "either", "else", "ever", "every",
+      "for", "from", "get", "got", "had", "has", "have", "he", "her", "hers",
+      "him", "his", "how", "however", "if", "in", "into", "is", "it", "its",
+      "just", "least", "let", "like", "likely", "may", "me", "might", "most",
+      "must", "my", "neither", "no", "nor", "not", "of", "off", "often", "on",
+      "only", "or", "other", "our", "own", "rather", "said", "say", "says", "she",
+      "should", "since", "so", "some", "than", "that", "the", "their", "them",
+      "then", "there", "these", "they", "this", "tis", "to", "too", "twas", "us",
+      "wants", "was", "we", "were", "what", "when", "where", "which", "while",
+      "who", "whom", "why", "will", "with", "would", "yet", "you", "your");
 
     private final Pattern WORDS_RE = Pattern.compile("[a-z']{2,}");
     private final Pattern QUERY_RE = Pattern.compile("[+-]?[a-z']{2,}");
@@ -68,14 +69,14 @@ public class Chapter07 extends BaseChapter {
             }
         };
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator,
-            Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.IMMUTABLE),
-            false)
-            .filter(s -> !STOP_WORDS.contains(s));
+          Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.IMMUTABLE),
+          false)
+          .filter(s -> !STOP_WORDS.contains(s));
     }
 
     public Flux<Long> indexDocument(Integer docId, String content) {
         return Flux.fromStream(tokenize(content))
-            .flatMap(word -> comm.sadd(S_IDX(word), docId.toString()));
+          .flatMap(word -> comm.sadd(S_IDX(word), docId.toString()));
     }
 
     public Mono<String> intersect(String[] keys) {
@@ -106,15 +107,15 @@ public class Chapter07 extends BaseChapter {
     private Mono<String> collectAndExpire(Function<String, Mono<Long>> collectOps) {
         String id = S_IDX(UUID.randomUUID().toString());
         return collectOps.apply(id)
-            .then(comm.expire(id, 30))
-            .thenReturn(id);
+          .then(comm.expire(id, 30))
+          .thenReturn(id);
     }
 
     private Mono<String> collectAndExpire(Function<String, Mono<Long>> collectOps, long timeout) {
         String id = S_IDX(UUID.randomUUID().toString());
         return collectOps.apply(id)
-            .then(comm.expire(id, timeout))
-            .thenReturn(id);
+          .then(comm.expire(id, timeout))
+          .thenReturn(id);
     }
 
     /**
@@ -157,52 +158,52 @@ public class Chapter07 extends BaseChapter {
 
     public Mono<String> parseAndSearch(String query, long timeout) {
         return Mono.just(parse(query))
-            .filter(tuple -> !tuple.getT1().isEmpty())
-            .flatMap(tuple -> {
-                Mono<String> mono = Flux.fromIterable(tuple.getT1())
-                    .map(set -> set.stream()
-                        .map(Key07::S_IDX)
-                        .toArray(String[]::new))
-                    .flatMap(arr -> union(arr, timeout))
-                    .collectList()
-                    .flatMap(list -> intersect(list.toArray(new String[0]), timeout));
-                if (tuple.getT2().isEmpty()) {
-                    return mono;
-                } else {
-                    return mono.flatMap(id -> difference(
-                        Stream.concat(Stream.of(id),
-                            tuple.getT2()
-                                .stream()
-                                .map(Key07::S_IDX))
-                            .toArray(String[]::new),
-                        timeout));
-                }
-            });
+          .filter(tuple -> !tuple.getT1().isEmpty())
+          .flatMap(tuple -> {
+              Mono<String> mono = Flux.fromIterable(tuple.getT1())
+                .map(set -> set.stream()
+                  .map(Key07::S_IDX)
+                  .toArray(String[]::new))
+                .flatMap(arr -> union(arr, timeout))
+                .collectList()
+                .flatMap(list -> intersect(list.toArray(new String[0]), timeout));
+              if (tuple.getT2().isEmpty()) {
+                  return mono;
+              } else {
+                  return mono.flatMap(id -> difference(
+                    Stream.concat(Stream.of(id),
+                      tuple.getT2()
+                        .stream()
+                        .map(Key07::S_IDX))
+                      .toArray(String[]::new),
+                    timeout));
+              }
+          });
     }
 
     public Mono<SortResult> searchAndSort(String query, SortArgs sortArgs, long timeout) {
         return parseAndSearch(query, timeout)
-            .flatMap(id -> getSortResult(id, sortArgs));
+          .flatMap(id -> getSortResult(id, sortArgs));
     }
 
     public Mono<SortResult> searchAndSort(String query, SortArgs sortArgs, long timeout, String idx) {
         return comm.expire(idx, timeout)
-            .filter(b -> b)
-            .map(b -> idx)
-            .switchIfEmpty(parseAndSearch(query, timeout))
-            .flatMap(id -> getSortResult(id, sortArgs));
+          .filter(b -> b)
+          .map(b -> idx)
+          .switchIfEmpty(parseAndSearch(query, timeout))
+          .flatMap(id -> getSortResult(id, sortArgs));
     }
 
     private Mono<SortResult> getSortResult(String id, SortArgs sortArgs) {
         return Mono.zip(comm.scard(id),
-            comm.sort(id, sortArgs).collectList())
-            .map(tuple -> {
-                SortResult r = new SortResult();
-                r.id = id;
-                r.size = tuple.getT1();
-                r.values = tuple.getT2();
-                return r;
-            });
+          comm.sort(id, sortArgs).collectList())
+          .map(tuple -> {
+              SortResult r = new SortResult();
+              r.id = id;
+              r.size = tuple.getT1();
+              r.values = tuple.getT2();
+              return r;
+          });
     }
 
     private static class SortResult {
@@ -255,39 +256,39 @@ public class Chapter07 extends BaseChapter {
 
     public Mono<SortResult> searchAndZSort(String query, double update, double vote, long start, long end, boolean desc, long timeout) {
         return parseAndSearch(query, timeout)
-            .flatMap(id -> {
-                String[] keys = new String[]{id, Z_SORT_UPDATE, Z_SORT_VOTES};
-                ZStoreArgs args = ZStoreArgs.Builder.weights(0, update, vote);
-                return zintersect(keys, args, timeout);
-            })
-            .flatMap(id -> getZSortResult(id, desc, start, end));
+          .flatMap(id -> {
+              String[] keys = new String[]{id, Z_SORT_UPDATE, Z_SORT_VOTES};
+              ZStoreArgs args = ZStoreArgs.Builder.weights(0, update, vote);
+              return zintersect(keys, args, timeout);
+          })
+          .flatMap(id -> getZSortResult(id, desc, start, end));
     }
 
     public Mono<SortResult> searchAndZSort(String query, double update, double vote, long start, long end, boolean desc, long timeout, String idx) {
         return comm.expire(idx, timeout)
-            .filter(b -> b)
-            .flatMap(b -> getZSortResult(idx, desc, start, end))
-            .switchIfEmpty(searchAndZSort(query, update, vote, start, end, desc, timeout));
+          .filter(b -> b)
+          .flatMap(b -> getZSortResult(idx, desc, start, end))
+          .switchIfEmpty(searchAndZSort(query, update, vote, start, end, desc, timeout));
     }
 
     private Mono<SortResult> getZSortResult(String id, boolean desc, long start, long end) {
         return comm.zcard(id)
-            .flatMap(size -> {
-                Flux<String> f;
-                if (desc) {
-                    f = comm.zrevrange(id, start, end);
-                } else {
-                    f = comm.zrange(id, start, end);
-                }
-                return f.collectList()
-                    .map(list -> {
-                        SortResult r = new SortResult();
-                        r.id = id;
-                        r.size = size;
-                        r.values = list;
-                        return r;
-                    });
-            });
+          .flatMap(size -> {
+              Flux<String> f;
+              if (desc) {
+                  f = comm.zrevrange(id, start, end);
+              } else {
+                  f = comm.zrange(id, start, end);
+              }
+              return f.collectList()
+                .map(list -> {
+                    SortResult r = new SortResult();
+                    r.id = id;
+                    r.size = size;
+                    r.values = list;
+                    return r;
+                });
+          });
     }
 
     public long stringToScore(String string, boolean ignoreCase) {
@@ -332,23 +333,23 @@ public class Chapter07 extends BaseChapter {
     public Mono<Void> indexAd(String id, Stream<String> locations, String content, Ecpm type, double value) {
         String[] words = tokenize(content).toArray(String[]::new);
         return Flux.fromStream(locations)
-            .map(Key07::S_IDX_REQ)
-            //index ad locations
-            .flatMap(k -> comm.sadd(k, id))
-            .concatWith(Flux.fromArray(words)
-                .map(Key07::ZS_IDX)
-                //index add words
-                .flatMap(k -> comm.zadd(k, 0, id)))
-            .concatWith(comm.hset(H_TYPE, id, type.name())
-                .thenReturn(1L))
-            //record ad value
-            .concatWith(comm.zadd(Z_IDX_AD_VALUE,
-                type.val(1000, AVERAGE_PER_1K.getOrDefault(type, 1d), value),
-                id))
-            //add base value
-            .concatWith(comm.zadd(Z_AD_BASE_VALUE, value, id))
-            .concatWith(comm.sadd(S_TERMS(id), words))
-            .then();
+          .map(Key07::S_IDX_REQ)
+          //index ad locations
+          .flatMap(k -> comm.sadd(k, id))
+          .concatWith(Flux.fromArray(words)
+            .map(Key07::ZS_IDX)
+            //index add words
+            .flatMap(k -> comm.zadd(k, 0, id)))
+          .concatWith(comm.hset(H_TYPE, id, type.name())
+            .thenReturn(1L))
+          //record ad value
+          .concatWith(comm.zadd(Z_IDX_AD_VALUE,
+            type.val(1000, AVERAGE_PER_1K.getOrDefault(type, 1d), value),
+            id))
+          //add base value
+          .concatWith(comm.zadd(Z_AD_BASE_VALUE, value, id))
+          .concatWith(comm.sadd(S_TERMS(id), words))
+          .then();
     }
 
     /**
@@ -357,12 +358,12 @@ public class Chapter07 extends BaseChapter {
     public Mono<Tuple2<String, Long>> targetAds(String content, Stream<String> locations) {
         Set<String> words = tokenize(content).collect(Collectors.toSet());
         return matchLocation(locations)
-            .flatMap(tuple -> finishScoring(tuple.getT1(), tuple.getT2(), words))
-            .flatMap(targetedAds -> comm.zrevrange(targetedAds, 0, 0)
-                .singleOrEmpty()
-                .zipWith(comm.incr(ADS_SERVED))
-                .flatMap(tuple -> recordTargetingResult(tuple.getT1(), tuple.getT2(), words)
-                    .then(Mono.just(tuple))));
+          .flatMap(tuple -> finishScoring(tuple.getT1(), tuple.getT2(), words))
+          .flatMap(targetedAds -> comm.zrevrange(targetedAds, 0, 0)
+            .singleOrEmpty()
+            .zipWith(comm.incr(ADS_SERVED))
+            .flatMap(tuple -> recordTargetingResult(tuple.getT1(), tuple.getT2(), words)
+              .then(Mono.just(tuple))));
     }
 
     /**
@@ -372,44 +373,44 @@ public class Chapter07 extends BaseChapter {
      */
     public Mono<Tuple2<String, String>> matchLocation(Stream<String> locations) {
         return union(locations.map(Key07::S_IDX_REQ).toArray(String[]::new), 300)
-            .flatMap(id -> zintersect(new String[]{id, Z_IDX_AD_VALUE}, ZStoreArgs.Builder.weights(0, 1), 300)
-                .map(baseEcpm -> Tuples.of(id, baseEcpm)));
+          .flatMap(id -> zintersect(new String[]{id, Z_IDX_AD_VALUE}, ZStoreArgs.Builder.weights(0, 1), 300)
+            .map(baseEcpm -> Tuples.of(id, baseEcpm)));
     }
 
     public Mono<String> finishScoring(String matched, String baseEcpm, Set<String> words) {
         return Flux.fromIterable(words)
-            .flatMap(word -> zintersect(new String[]{matched, word}, ZStoreArgs.Builder.weights(0, 1)))
-            .collectList()
-            .filter(list -> list.size() > 0)
-            .flatMap(bonusEcpm -> {
-                String[] arr = bonusEcpm.toArray(new String[0]);
-                return Mono.zip(zunion(arr, ZStoreArgs.Builder.min()),
-                    zunion(arr, ZStoreArgs.Builder.max()))
-                    .flatMap(tuple -> zunion(new String[]{baseEcpm, tuple.getT1(), tuple.getT2()},
-                        ZStoreArgs.Builder.weights(1, 0.5, 0.5)));
-            })
-            .defaultIfEmpty(baseEcpm);
+          .flatMap(word -> zintersect(new String[]{matched, word}, ZStoreArgs.Builder.weights(0, 1)))
+          .collectList()
+          .filter(list -> list.size() > 0)
+          .flatMap(bonusEcpm -> {
+              String[] arr = bonusEcpm.toArray(new String[0]);
+              return Mono.zip(zunion(arr, ZStoreArgs.Builder.min()),
+                zunion(arr, ZStoreArgs.Builder.max()))
+                .flatMap(tuple -> zunion(new String[]{baseEcpm, tuple.getT1(), tuple.getT2()},
+                  ZStoreArgs.Builder.weights(1, 0.5, 0.5)));
+          })
+          .defaultIfEmpty(baseEcpm);
     }
 
     public Flux<Long> recordTargetingResult(String adId, Long targetId, Set<String> words) {
         String adViews = Z_VIEWS(adId);
         return comm.hget(H_TYPE, adId)
-            .map(Key07::TYPE_VIEWS)
-            .flatMap(comm::incr)
-            .then(comm.smembers(S_TERMS(adId))
-                .filter(words::contains)
-                .flatMap(word -> comm.zincrby(adViews, 1, word)
-                    .thenReturn(word))
-                .collectList()
-                .filter(list -> list.size() > 0)
-                .flatMap(matched -> {
-                    String matchedKey = S_MATCHED(targetId);
-                    return comm.sadd(matchedKey, matched.toArray(new String[0]))
-                        .then(comm.expire(matchedKey, 900));
-                }))
-            .thenMany(comm.zincrby(adViews, 1, "")
-                .filter(l -> (l % 100) == 0)
-                .flatMapMany(l -> updateCpms(adId)));
+          .map(Key07::TYPE_VIEWS)
+          .flatMap(comm::incr)
+          .then(comm.smembers(S_TERMS(adId))
+            .filter(words::contains)
+            .flatMap(word -> comm.zincrby(adViews, 1, word)
+              .thenReturn(word))
+            .collectList()
+            .filter(list -> list.size() > 0)
+            .flatMap(matched -> {
+                String matchedKey = S_MATCHED(targetId);
+                return comm.sadd(matchedKey, matched.toArray(new String[0]))
+                  .then(comm.expire(matchedKey, 900));
+            }))
+          .thenMany(comm.zincrby(adViews, 1, "")
+            .filter(l -> (l % 100) == 0)
+            .flatMapMany(l -> updateCpms(adId)));
     }
 
     /**
@@ -419,74 +420,74 @@ public class Chapter07 extends BaseChapter {
     public Flux<Long> recordClick(String adId, Long targetId, boolean act) {
         String matchKey = S_MATCHED(targetId);
         return comm.hget(H_TYPE, adId)
-            .flatMap(type -> {
-                Mono<Boolean> m = Mono.just(true);
-                if (Ecpm.CPA.nameEqual(type)) {
-                    m = comm.expire(matchKey, 900);
-                    if (act) {
-                        return m.then(comm.incr(TYPE_ACTIONS(type)))
-                            .thenReturn(Z_ACTIONS(adId));
-                    }
-                }
-                return m.then(comm.incr(TYPE_CLICKS(type)))
-                    .thenReturn(Z_CLICKS(adId));
-            })
-            .flatMapMany(clickKey -> comm.smembers(matchKey)
-                .concatWithValues("")
-                .flatMap(word -> comm.zincrby(clickKey, 1, word)))
-            .thenMany(updateCpms(adId));
+          .flatMap(type -> {
+              Mono<Boolean> m = Mono.just(true);
+              if (Ecpm.CPA.nameEqual(type)) {
+                  m = comm.expire(matchKey, 900);
+                  if (act) {
+                      return m.then(comm.incr(TYPE_ACTIONS(type)))
+                        .thenReturn(Z_ACTIONS(adId));
+                  }
+              }
+              return m.then(comm.incr(TYPE_CLICKS(type)))
+                .thenReturn(Z_CLICKS(adId));
+          })
+          .flatMapMany(clickKey -> comm.smembers(matchKey)
+            .concatWithValues("")
+            .flatMap(word -> comm.zincrby(clickKey, 1, word)))
+          .thenMany(updateCpms(adId));
     }
 
     public Flux<Long> updateCpms(String adId) {
         return comm.hget(H_TYPE, adId)
-            .map(Ecpm::valueOf)
-            .flatMapMany(type -> {
-                String typeKey;
-                String clickKey;
-                String tName = type.name();
-                if (Ecpm.CPA.equals(type)) {
-                    typeKey = TYPE_ACTIONS(tName);
-                    clickKey = Z_ACTIONS(adId);
-                } else {
-                    typeKey = TYPE_CLICKS(tName);
-                    clickKey = Z_CLICKS(adId);
-                }
-                return Mono.zip(comm.get(TYPE_VIEWS(tName))
-                        .map(Integer::valueOf)
-                        .defaultIfEmpty(1),
-                    comm.get(typeKey)
-                        .map(Integer::valueOf)
-                        .defaultIfEmpty(1))
-                    .doOnNext(tuple -> AVERAGE_PER_1K.put(type, 1000 * (double) tuple.getT2() / tuple.getT1()))
-                    .filter(tuple -> !Ecpm.CPM.equals(type))
-                    .flatMap(t -> comm.zscore(Z_AD_BASE_VALUE, adId))
-                    .flatMapMany(baseValue -> {
-                        String viewKey = Z_VIEWS(adId);
-                        return Mono.zip(comm.zscore(viewKey, "")
-                                .defaultIfEmpty(1d),
-                            comm.zscore(clickKey, "")
-                                .defaultIfEmpty(0d))
-                            .flatMap(tuple -> {
-                                if (tuple.getT2() < 1) {
-                                    return comm.zscore(Z_IDX_AD_VALUE, adId);
-                                } else {
-                                    double adEcpm = type.val(tuple.getT1(), tuple.getT2(), baseValue);
-                                    return comm.zadd(Z_IDX_AD_VALUE, adEcpm, adId)
-                                        .thenReturn(adEcpm);
-                                }
-                            })
-                            .flatMapMany(adEcpm -> comm.smembers(S_TERMS(adId))
-                                //zscore改成zrange,本地处理再写入,降低通信次数
-                                .flatMap(word -> comm.zscore(clickKey, word)
-                                    .defaultIfEmpty(0d)
-                                    .filter(clicks -> clicks >= 1)
-                                    .flatMap(clicks -> comm.zscore(viewKey, word)
-                                        .defaultIfEmpty(1d)
-                                        .map(views -> type.val(views, clicks, baseValue))
-                                        .map(wordEcpm -> wordEcpm - adEcpm)
-                                        .flatMap(bonus -> comm.zadd(ZS_IDX(word), bonus, adId)))));
-                    });
-            });
+          .map(Ecpm::valueOf)
+          .flatMapMany(type -> {
+              String typeKey;
+              String clickKey;
+              String tName = type.name();
+              if (Ecpm.CPA.equals(type)) {
+                  typeKey = TYPE_ACTIONS(tName);
+                  clickKey = Z_ACTIONS(adId);
+              } else {
+                  typeKey = TYPE_CLICKS(tName);
+                  clickKey = Z_CLICKS(adId);
+              }
+              return Mono.zip(comm.get(TYPE_VIEWS(tName))
+                  .map(Integer::valueOf)
+                  .defaultIfEmpty(1),
+                comm.get(typeKey)
+                  .map(Integer::valueOf)
+                  .defaultIfEmpty(1))
+                .doOnNext(tuple -> AVERAGE_PER_1K.put(type, 1000 * (double) tuple.getT2() / tuple.getT1()))
+                .filter(tuple -> !Ecpm.CPM.equals(type))
+                .flatMap(t -> comm.zscore(Z_AD_BASE_VALUE, adId))
+                .flatMapMany(baseValue -> {
+                    String viewKey = Z_VIEWS(adId);
+                    return Mono.zip(comm.zscore(viewKey, "")
+                        .defaultIfEmpty(1d),
+                      comm.zscore(clickKey, "")
+                        .defaultIfEmpty(0d))
+                      .flatMap(tuple -> {
+                          if (tuple.getT2() < 1) {
+                              return comm.zscore(Z_IDX_AD_VALUE, adId);
+                          } else {
+                              double adEcpm = type.val(tuple.getT1(), tuple.getT2(), baseValue);
+                              return comm.zadd(Z_IDX_AD_VALUE, adEcpm, adId)
+                                .thenReturn(adEcpm);
+                          }
+                      })
+                      .flatMapMany(adEcpm -> comm.smembers(S_TERMS(adId))
+                        //zscore改成zrange,本地处理再写入,降低通信次数
+                        .flatMap(word -> comm.zscore(clickKey, word)
+                          .defaultIfEmpty(0d)
+                          .filter(clicks -> clicks >= 1)
+                          .flatMap(clicks -> comm.zscore(viewKey, word)
+                            .defaultIfEmpty(1d)
+                            .map(views -> type.val(views, clicks, baseValue))
+                            .map(wordEcpm -> wordEcpm - adEcpm)
+                            .flatMap(bonus -> comm.zadd(ZS_IDX(word), bonus, adId)))));
+                });
+          });
     }
 
     /*
@@ -500,8 +501,8 @@ public class Chapter07 extends BaseChapter {
     public Flux<String> isQualified(String jobId, String[] candidateSkills) {
         String temp = UUID.randomUUID().toString();
         return comm.sadd(temp, candidateSkills)
-            .then(comm.expire(temp, 5))
-            .thenMany(comm.sdiff(S_JOB(jobId), temp));
+          .then(comm.expire(temp, 5))
+          .thenMany(comm.sdiff(S_JOB(jobId), temp));
     }
 
     /**
@@ -509,9 +510,9 @@ public class Chapter07 extends BaseChapter {
      */
     public Flux<Long> indexJob(String jobId, Set<String> skills) {
         return Flux.fromIterable(skills)
-            .map(Key07::S_IDX_SKILL)
-            .flatMap(k -> comm.sadd(k, jobId))
-            .concatWith(comm.zadd(Z_IDX_JOB_REQ, skills.size(), jobId));
+          .map(Key07::S_IDX_SKILL)
+          .flatMap(k -> comm.sadd(k, jobId))
+          .concatWith(comm.zadd(Z_IDX_JOB_REQ, skills.size(), jobId));
     }
 
     /**
@@ -520,7 +521,7 @@ public class Chapter07 extends BaseChapter {
      */
     public Flux<String> findJob(Stream<String> candidateSkills) {
         return zunion(candidateSkills.map(Key07::Z_SKILL).toArray(String[]::new))
-            .flatMap(jobScores -> zintersect(new String[]{jobScores, Z_JOB_REQ}, ZStoreArgs.Builder.weights(-1, 1)))
-            .flatMapMany(k -> comm.zrangebyscore(k, 0, 0));
+          .flatMap(jobScores -> zintersect(new String[]{jobScores, Z_JOB_REQ}, ZStoreArgs.Builder.weights(-1, 1)))
+          .flatMapMany(k -> comm.zrangebyscore(k, Range.create(0, 0)));
     }
 }

@@ -26,8 +26,8 @@ public class Chapter00 extends BaseChapter {
         Mono<String> set = comm.set(s_Key, value);
 
         StepVerifier.create(set)
-            .expectNext("OK")
-            .verifyComplete();
+          .expectNext("OK")
+          .verifyComplete();
 
         del(s_Key);
     }
@@ -36,33 +36,33 @@ public class Chapter00 extends BaseChapter {
 
         //rightPush return the length of the list after the push operation
         StepVerifier.create(comm.rpush(L_Key, v1)
-            .then(comm.rpush(L_Key, v2))
-            .then(comm.rpush(L_Key, v3)))
-            .expectNext(3L)
-            .verifyComplete();
+          .then(comm.rpush(L_Key, v2))
+          .then(comm.rpush(L_Key, v3)))
+          .expectNext(3L)
+          .verifyComplete();
 
         Flux<String> flux = comm.lrange(L_Key, 0, -1);
 
         StepVerifier.create(flux)
-            .expectNext(v1)
-            .expectNext(v2)
-            .expectNext(v3)
-            .verifyComplete();
+          .expectNext(v1)
+          .expectNext(v2)
+          .expectNext(v3)
+          .verifyComplete();
 
         Mono<String> index1 = comm.lindex(L_Key, 1);
         StepVerifier.create(index1)
-            .expectNext(v2)
-            .verifyComplete();
+          .expectNext(v2)
+          .verifyComplete();
 
         Mono<String> popValue = comm.lpop(L_Key);
         StepVerifier.create(popValue)
-            .expectNext(v1)
-            .verifyComplete();
+          .expectNext(v1)
+          .verifyComplete();
 
         StepVerifier.create(flux)
-            .expectNext(v2)
-            .expectNext(v3)
-            .verifyComplete();
+          .expectNext(v2)
+          .expectNext(v3)
+          .verifyComplete();
 
         del(L_Key);
     }
@@ -72,24 +72,24 @@ public class Chapter00 extends BaseChapter {
     public void set() {
 
         StepVerifier.create(comm.sadd(S_Key, v1, v2, v3))
-            .expectNext(3L)
-            .verifyComplete();
+          .expectNext(3L)
+          .verifyComplete();
 
         StepVerifier.create(comm.smembers(S_Key))
-            .expectNextCount(3)
-            .verifyComplete();
+          .expectNextCount(3)
+          .verifyComplete();
 
         StepVerifier.create(comm.sismember(S_Key, v1))
-            .expectNext(true)
-            .verifyComplete();
+          .expectNext(true)
+          .verifyComplete();
 
         StepVerifier.create(comm.srem(S_Key, v1))
-            .expectNext(1L)
-            .verifyComplete();
+          .expectNext(1L)
+          .verifyComplete();
 
         StepVerifier.create(comm.sismember(S_Key, v1))
-            .expectNext(false)
-            .verifyComplete();
+          .expectNext(false)
+          .verifyComplete();
 
         del(S_Key);
     }
@@ -100,25 +100,25 @@ public class Chapter00 extends BaseChapter {
 
         //put return success
         StepVerifier.create(comm.hset(H_Key, subKey1, v1)
-            .then(comm.hset(H_Key, subKey2, v2)))
-            .expectNext(true)
-            .verifyComplete();
+          .then(comm.hset(H_Key, subKey2, v2)))
+          .expectNext(true)
+          .verifyComplete();
 
         StepVerifier.create(comm.hgetall(H_Key))
-            .expectNextMatches(map -> map.size() == 2)
-            .verifyComplete();
+          .expectNextMatches(map -> map.size() == 2)
+          .verifyComplete();
 
         StepVerifier.create(comm.hget(H_Key, subKey1))
-            .expectNext(v1)
-            .verifyComplete();
+          .expectNext(v1)
+          .verifyComplete();
 
         StepVerifier.create(comm.hdel(H_Key, subKey1))
-            .expectNext(1L)
-            .verifyComplete();
+          .expectNext(1L)
+          .verifyComplete();
 
         StepVerifier.create(comm.hgetall(H_Key))
-            .expectNextMatches(map -> map.size() == 1)
-            .verifyComplete();
+          .expectNextMatches(map -> map.size() == 1)
+          .verifyComplete();
 
         del(H_Key);
     }
@@ -126,24 +126,24 @@ public class Chapter00 extends BaseChapter {
     public void zSet() {
         //分值
         StepVerifier.create(comm.zadd(ZS_Key, 728d, v1))
-            .expectNext(1L)
-            .verifyComplete();
+          .expectNext(1L)
+          .verifyComplete();
 
         StepVerifier.create(comm.zadd(ZS_Key, 982d, v2))
-            .expectNext(1L)
-            .verifyComplete();
+          .expectNext(1L)
+          .verifyComplete();
 
         StepVerifier.create(comm.zadd(ZS_Key, 982d, v3))
-            .expectNext(1L)
-            .verifyComplete();
+          .expectNext(1L)
+          .verifyComplete();
 
         StepVerifier.create(comm.zrange(ZS_Key, 0, -1))
-            .expectNextCount(3)
-            .verifyComplete();
+          .expectNextCount(3)
+          .verifyComplete();
 
         StepVerifier.create(comm.zrem(ZS_Key, v1))
-            .expectNext(1L)
-            .verifyComplete();
+          .expectNext(1L)
+          .verifyComplete();
 
         del(ZS_Key);
     }

@@ -38,8 +38,8 @@ public class Supports {
             }
         };
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator,
-            Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.IMMUTABLE),
-            false);
+          Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.IMMUTABLE),
+          false);
     }
 
     /**

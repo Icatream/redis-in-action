@@ -24,20 +24,20 @@ public abstract class BaseChapter {
 
     protected void del(String key) {
         StepVerifier.create(comm.del(key))
-            .expectNext(1L)
-            .verifyComplete();
+          .expectNext(1L)
+          .verifyComplete();
     }
 
     public void scriptFlush() {
         StepVerifier.create(comm.scriptFlush())
-            .expectNext("OK")
-            .verifyComplete();
+          .expectNext("OK")
+          .verifyComplete();
     }
 
     protected final Mono<String> uploadScript(String path) {
         return Mono.fromCallable(() -> new String(Files.readAllBytes(Paths.get(ClassLoader.getSystemResource(path).toURI()))))
-            .flatMap(comm::scriptLoad)
-            .cache();
+          .flatMap(comm::scriptLoad)
+          .cache();
     }
 
     public static RedisReactiveCommands<String, String> getGZipCommands(RedisClient client) {

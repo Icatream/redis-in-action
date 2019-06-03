@@ -44,7 +44,7 @@ public interface Key06 extends BaseKey {
         return MSG + k;
     }
 
-    static String Z_DAILY_COUNTRY(LocalDate day){
+    static String Z_DAILY_COUNTRY(LocalDate day) {
         return DAILY_COUNTRY + day;
     }
 }
