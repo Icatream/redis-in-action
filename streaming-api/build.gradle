@@ -5,10 +5,51 @@ plugins {
 group 'ria.lettuce'
 
 dependencies {
-    implementation 'com.google.protobuf:protoc:3.6.1'
-
     implementation 'io.rsocket:rsocket-core:0.12.1'
     implementation 'io.rsocket:rsocket-transport-netty:0.12.1'
     implementation 'io.rsocket.rpc:rsocket-rpc-core:0.2.17'
-    implementation group: 'io.rsocket.rpc', name: 'rsocket-rpc-protobuf', version: '0.2.17', ext: 'pom'
+
+    implementation "com.google.protobuf:protobuf-java:3.8.0"
+
+    //implementation 'com.google.protobuf:protoc:3.6.1'
+    //implementation group: 'io.rsocket.rpc', name: 'rsocket-rpc-protobuf', version: '0.2.17', ext: 'pom'
+}
+
+sourceSets {
+    main {
+        proto {
+            srcDir 'src/main/proto'
+        }
+        java {
+            srcDirs += 'gen/main/java'
+            srcDirs += 'gen/main/rsocketRpc'
+        }
+    }
+    test {
+        proto {
+            srcDir 'src/test/proto'
+        }
+        java {
+            srcDirs += 'gen/main/java'
+            srcDirs += 'gen/main/rsocketRpc'
+        }
+    }
+}
+
+protobuf {
+    generatedFilesBaseDir = "gen"
+    protoc {
+        artifact = 'com.google.protobuf:protoc:3.8.0'
+    }
+
+    plugins {
+        rsocketRpc {
+            artifact = 'io.rsocket.rpc:rsocket-rpc-protobuf:0.2.17'
+        }
+    }
+    generateProtoTasks {
+        all()*.plugins {
+            rsocketRpc {}
+        }
+    }
 }

@@ -31,7 +31,7 @@ public class StreamingAPIServer {
         this.server.dispose();
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         RSocketFactory.receive()
           .errorConsumer(throwable -> {
               logger.error("Bad request", throwable);
@@ -40,8 +40,9 @@ public class StreamingAPIServer {
           .transport(TcpServerTransport.create("localhost", 8080))
           .start()
           .block();
-        Scanner sc = new Scanner(System.in);
+        Thread.currentThread().join();
+        /*Scanner sc = new Scanner(System.in);
         System.out.print("Server block...");
-        System.out.print(sc.next());
+        System.out.print(sc.next());*/
     }
 }
