@@ -312,6 +312,7 @@ public class Chapter03 extends BaseChapter {
         del(k);
     }
 
+    @SuppressWarnings("unchecked")
     public void zset() {
         String k = "zset-key";
 
@@ -349,6 +350,7 @@ public class Chapter03 extends BaseChapter {
         del(k);
     }
 
+    @SuppressWarnings("unchecked")
     public void zInterAndUnion() {
         String k1 = "zset-1";
         String k2 = "zset-2";
