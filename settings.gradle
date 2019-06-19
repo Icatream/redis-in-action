@@ -1,2 +1,3 @@
 rootProject.name = 'redis-in-action'
+include 'streaming-api'
 

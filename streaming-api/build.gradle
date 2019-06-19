@@ -1,0 +1,11 @@
+plugins {
+    id 'com.google.protobuf' version '0.8.8'
+}
+
+group 'ria.lettuce'
+
+dependencies {
+    implementation group: 'io.rsocket', name: 'rsocket-core', version: '0.12.1'
+    implementation group: 'io.rsocket', name: 'rsocket-transport-netty', version: '0.12.1'
+    implementation group: 'io.rsocket.rpc', name: 'rsocket-rpc-core', version: '0.2.17'
+}

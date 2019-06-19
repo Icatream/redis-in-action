@@ -1,0 +1,33 @@
+plugins {
+    java
+    idea
+}
+
+version = "1.0-SNAPSHOT"
+
+configure<JavaPluginConvention> {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    implementation("io.lettuce:lettuce-core:5.1.6.RELEASE")
+    implementation("io.projectreactor:reactor-core:3.2.9.RELEASE")
+    implementation("io.projectreactor.netty:reactor-netty:0.8.8.RELEASE")
+    implementation("io.projectreactor.addons:reactor-extra:3.2.3.RELEASE")
+    implementation("com.google.guava:guava:27.1-jre")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.9.8")
+
+    implementation("io.rsocket:rsocket-core:0.12.1")
+    implementation("io.rsocket:rsocket-transport-netty:0.12.1")
+    implementation(group = "io.rsocket.rpc", name = "rsocket-rpc-protobuf", version = "0.2.17", ext = "pom")
+
+    implementation("ch.qos.logback:logback-classic:1.2.3")
+    implementation("io.projectreactor:reactor-test:3.2.9.RELEASE")
+    testImplementation("junit:junit:4.12")
+}
