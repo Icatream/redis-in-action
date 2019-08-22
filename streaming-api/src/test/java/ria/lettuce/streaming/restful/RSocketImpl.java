@@ -1,4 +1,4 @@
-package ria.lettuce.streaming;
+package ria.lettuce.streaming.restful;
 
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;

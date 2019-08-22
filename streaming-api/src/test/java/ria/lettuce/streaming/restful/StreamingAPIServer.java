@@ -1,4 +1,4 @@
-package ria.lettuce.streaming;
+package ria.lettuce.streaming.restful;
 
 import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.server.TcpServerTransport;
@@ -6,8 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
-
-import java.util.Scanner;
 
 /**
  * @author YaoXunYu

@@ -1,4 +1,4 @@
-package ria.lettuce.streaming.rsocket;
+package ria.lettuce.streaming.simple;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -61,14 +61,15 @@ public class Server {
         @Override
         public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
             return Flux.from(payloads)
-              .map(Payload::data)
-              .map(byteBuf -> {
-                  int i = byteBuf.capacity();
-                  ByteBuf buf = ByteBufAllocator.DEFAULT.buffer(i);
+              .map(payload -> {
+                  ByteBuf source = payload.data();
+                  ByteBuf reverse = ByteBufAllocator.DEFAULT.buffer(source.capacity());
+                  int i = source.readableBytes();
                   while (i > 0) {
-                      buf.writeByte(byteBuf.getByte(--i));
+                      reverse.writeByte(source.getByte(--i));
                   }
-                  return buf;
+                  payload.release();
+                  return reverse;
               })
               .map(DefaultPayload::create);
         }

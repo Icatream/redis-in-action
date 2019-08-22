@@ -1,9 +1,12 @@
-package ria.lettuce.streaming;
+package ria.lettuce.streaming.restful;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import reactor.core.publisher.Mono;
+import ria.lettuce.streaming.restful.RestfulMetadataRouter;
+import ria.lettuce.streaming.restful.StreamingAPIClient;
+import ria.lettuce.streaming.restful.StreamingAPIServer;
 
 /**
  * @author YaoXunYu

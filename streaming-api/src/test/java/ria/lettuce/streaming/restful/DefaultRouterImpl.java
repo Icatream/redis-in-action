@@ -1,4 +1,4 @@
-package ria.lettuce.streaming;
+package ria.lettuce.streaming.restful;
 
 import reactor.core.publisher.Mono;
 

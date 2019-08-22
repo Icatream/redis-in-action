@@ -458,7 +458,7 @@ public class Chapter06 extends BaseChapter {
           .doOnNext(country -> {
               aggregates.putIfAbsent(day, new ConcurrentHashMap<>());
               aggregates.get(day)
-                .merge(country, 1, (ov, v) -> ov + v);
+                .merge(country, 1, Integer::sum);
           });
     }
 
@@ -544,7 +544,7 @@ public class Chapter06 extends BaseChapter {
 
         private void offer(Tuple2<Path, Long> tuple) {
             waiting.offer(tuple);
-            bytesInRedis.accumulateAndGet(tuple.getT2(), (prev, n) -> prev + n);
+            bytesInRedis.accumulateAndGet(tuple.getT2(), Long::sum);
         }
 
         private void remove(Tuple2<Path, Long> tuple) {
@@ -591,7 +591,7 @@ public class Chapter06 extends BaseChapter {
     private BiFunction<String, RedisReactiveCommands<String, String>, Flux<String>> readLines = (key, commands) -> {
         long blockSize = 2 ^ 17;
         AtomicLong pos = new AtomicLong();
-        return Mono.fromSupplier(() -> pos.getAndAccumulate(blockSize, (pv, v) -> pv + v))
+        return Mono.fromSupplier(() -> pos.getAndAccumulate(blockSize, Long::sum))
           .flatMap(p -> commands.getrange(key, p, p + blockSize - 1))
           .repeat()
           .takeWhile(s -> !"".equals(s))

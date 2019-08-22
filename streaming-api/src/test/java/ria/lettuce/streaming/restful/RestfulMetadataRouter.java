@@ -1,4 +1,4 @@
-package ria.lettuce.streaming;
+package ria.lettuce.streaming.restful;
 
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;

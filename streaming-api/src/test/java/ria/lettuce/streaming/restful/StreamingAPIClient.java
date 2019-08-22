@@ -1,4 +1,4 @@
-package ria.lettuce.streaming;
+package ria.lettuce.streaming.restful;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;

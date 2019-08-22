@@ -16,6 +16,7 @@ allprojects {
     repositories {
         mavenLocal()
         mavenCentral()
+        jcenter()
     }
 
     idea {
@@ -26,12 +27,15 @@ allprojects {
     }
 
     dependencies {
-        implementation 'io.lettuce:lettuce-core:5.1.6.RELEASE'
+        implementation 'io.lettuce:lettuce-core:5.1.8.RELEASE'
         implementation 'io.projectreactor:reactor-core:3.2.9.RELEASE'
         implementation 'io.projectreactor.netty:reactor-netty:0.8.8.RELEASE'
         //implementation 'io.projectreactor.addons:reactor-extra:3.2.3.RELEASE'
         implementation 'com.google.guava:guava:27.1-jre'
         implementation 'com.fasterxml.jackson.core:jackson-databind:2.9.8'
+
+        // https://mvnrepository.com/artifact/org.jctools/jctools-core
+        implementation group: 'org.jctools', name: 'jctools-core', version: '2.1.2'
 
         implementation 'ch.qos.logback:logback-classic:1.2.3'
         testImplementation 'io.projectreactor:reactor-test:3.2.9.RELEASE'

@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package ria.lettuce.streaming;
+
+import "google/protobuf/any.proto";
+
+option java_package = "ria.lettuce.streaming";
+option java_outer_classname = "StreamingServiceProto";
+option java_multiple_files = true;
+
+service StreamingService {
+    rpc RequestReply (ApiReq) returns (Subscription) {
+    }
+
+    //rpc FireAndForget
+
+    rpc RequestStream (ApiReq) returns (stream Subscription) {
+    }
+
+    //rpc StreamingRequestSingleResponse
+
+    //rpc StreamingRequestAndResponse
+}
+
+message ApiReq {
+    string identification = 1;
+    Filter filter = 2;
+    enum Filter {
+        SAMPLE = 0;
+        TRACK = 1;
+        FOLLOW = 2;
+        LOCATION = 3;
+    }
+    int64 id = 3;
+}
+
+message Subscription {
+    string channel = 1;
+    string message = 2;
+}
