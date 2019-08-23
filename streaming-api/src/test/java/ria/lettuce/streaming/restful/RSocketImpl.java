@@ -7,6 +7,8 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.function.Function;
+
 /**
  * @author YaoXunYu
  * created on 06/04/19
@@ -28,20 +30,20 @@ public class RSocketImpl extends AbstractRSocket {
     @Override
     public Mono<Payload> requestResponse(Payload payload) {
         return Mono.fromDirect(router.route(payload))
-          .map(this::fakePayloadWriter);
+          .map(fakePayloadWriter);
     }
 
     @Override
     public Flux<Payload> requestStream(Payload payload) {
         return Flux.from(router.route(payload))
-          .map(this::fakePayloadWriter);
+          .map(fakePayloadWriter);
     }
 
     @Override
     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
         return Flux.from(payloads)
           .flatMap(router::route)
-          .map(this::fakePayloadWriter);
+          .map(fakePayloadWriter);
     }
 
     @Override
@@ -49,11 +51,11 @@ public class RSocketImpl extends AbstractRSocket {
         return Mono.empty();
     }
 
-    private Payload fakePayloadWriter(Object obj) {
+    private Function<Object, Payload> fakePayloadWriter = obj -> {
         if (obj instanceof CharSequence) {
             return DefaultPayload.create((CharSequence) obj);
         } else {
             return DefaultPayload.create(obj.toString());
         }
-    }
+    };
 }

@@ -31,16 +31,11 @@ public class StreamingAPIServer {
 
     public static void main(String[] args) throws InterruptedException {
         RSocketFactory.receive()
-          .errorConsumer(throwable -> {
-              logger.error("Bad request", throwable);
-          })
+          .errorConsumer(throwable -> logger.error("Bad request", throwable))
           .acceptor((setupPayload, reactiveSocket) -> Mono.just(new RSocketImpl()))
           .transport(TcpServerTransport.create("localhost", 8080))
           .start()
           .block();
-        Thread.currentThread().join();
-        /*Scanner sc = new Scanner(System.in);
-        System.out.print("Server block...");
-        System.out.print(sc.next());*/
+        //Thread.currentThread().join();
     }
 }

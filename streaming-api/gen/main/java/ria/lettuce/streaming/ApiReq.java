@@ -28,8 +28,7 @@ public final class ApiReq extends GeneratedMessageV3 implements ApiReqOrBuilder 
 
     @Override
     @SuppressWarnings({"unused"})
-    protected Object newInstance(
-      UnusedPrivateParameter unused) {
+    protected Object newInstance(UnusedPrivateParameter unused) {
         return new ApiReq();
     }
 
@@ -38,8 +37,8 @@ public final class ApiReq extends GeneratedMessageV3 implements ApiReqOrBuilder 
         return this.unknownFields;
     }
 
-    private ApiReq(CodedInputStream input, ExtensionRegistryLite extensionRegistry)
-      throws InvalidProtocolBufferException {
+    private ApiReq(CodedInputStream input,
+                   ExtensionRegistryLite extensionRegistry) throws InvalidProtocolBufferException {
         this();
         if (extensionRegistry == null) {
             throw new NullPointerException();
@@ -365,8 +364,8 @@ public final class ApiReq extends GeneratedMessageV3 implements ApiReqOrBuilder 
         return PARSER.parseFrom(data);
     }
 
-    public static ApiReq parseFrom(byte[] data, ExtensionRegistryLite extensionRegistry)
-      throws InvalidProtocolBufferException {
+    public static ApiReq parseFrom(byte[] data,
+                                   ExtensionRegistryLite extensionRegistry) throws InvalidProtocolBufferException {
         return PARSER.parseFrom(data, extensionRegistry);
     }
 
@@ -555,8 +554,8 @@ public final class ApiReq extends GeneratedMessageV3 implements ApiReqOrBuilder 
         }
 
         @Override
-        public Builder mergeFrom(CodedInputStream input, ExtensionRegistryLite extensionRegistry)
-          throws IOException {
+        public Builder mergeFrom(CodedInputStream input,
+                                 ExtensionRegistryLite extensionRegistry) throws IOException {
             ApiReq parsedMessage = null;
             try {
                 parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
@@ -743,8 +742,8 @@ public final class ApiReq extends GeneratedMessageV3 implements ApiReqOrBuilder 
 
     private static final Parser<ApiReq> PARSER = new AbstractParser<ApiReq>() {
         @Override
-        public ApiReq parsePartialFrom(CodedInputStream input, ExtensionRegistryLite extensionRegistry)
-          throws InvalidProtocolBufferException {
+        public ApiReq parsePartialFrom(CodedInputStream input,
+                                       ExtensionRegistryLite extensionRegistry) throws InvalidProtocolBufferException {
             return new ApiReq(input, extensionRegistry);
         }
     };

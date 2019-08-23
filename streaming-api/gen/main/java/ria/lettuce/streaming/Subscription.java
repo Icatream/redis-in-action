@@ -37,8 +37,8 @@ public final class Subscription extends GeneratedMessageV3 implements Subscripti
         return this.unknownFields;
     }
 
-    private Subscription(CodedInputStream input, ExtensionRegistryLite extensionRegistry)
-      throws InvalidProtocolBufferException {
+    private Subscription(CodedInputStream input,
+                         ExtensionRegistryLite extensionRegistry) throws InvalidProtocolBufferException {
         this();
         if (extensionRegistry == null) {
             throw new NullPointerException();
@@ -68,7 +68,8 @@ public final class Subscription extends GeneratedMessageV3 implements Subscripti
         } catch (InvalidProtocolBufferException e) {
             throw e.setUnfinishedMessage(this);
         } catch (IOException e) {
-            throw new InvalidProtocolBufferException(e).setUnfinishedMessage(this);
+            throw new InvalidProtocolBufferException(e)
+              .setUnfinishedMessage(this);
         } finally {
             this.unknownFields = unknownFields.build();
             makeExtensionsImmutable();
