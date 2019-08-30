@@ -42,7 +42,7 @@ public class ReactorTest {
           Mono.fromCompletionStage(CompletableFuture.supplyAsync(makeSupplier(2))))
           .map(tuple -> tuple.getT1() + tuple.getT2())
           .map(Object::toString)
-          .doOnNext(s -> printThreadAndTime(" res-> " + s))
+          .doOnNext(s -> printThreadAndTime(" result-> " + s))
           .subscribe();
     }
 
